@@ -1,0 +1,5 @@
+# 忽略 iuim/third_party 目录下的所有文件
+iuim/third_party/
+
+# 忽略所有 .o 编译文件
+*.o
