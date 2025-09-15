@@ -1,5 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Users/ASUS/Desktop/iuim/server",
     "go.useLanguageServer": true,
     "gopls": {
         "ui.diagnostic.analyses": {
@@ -80,6 +79,7 @@
         "xstring": "cpp",
         "xtr1common": "cpp",
         "xtree": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "random": "cpp"
     }
 }
