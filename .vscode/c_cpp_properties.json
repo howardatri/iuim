@@ -4,9 +4,9 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
+                "${workspaceFolder}/third_party",
                 "C:/Users/ASUS/Desktop/iuim/third_party/sqlite",
                 "C:/Users/ASUS/Desktop/iuim/third_party/nlohmann"
-
             ],
             "defines": [
                 "_DEBUG",
