@@ -1,26 +1,12 @@
 @echo off
-chcp 65001>nul
-echo Compiling IUIM server...
+echo Building UserSVC...
 
-if not exist "build\bin" (
-    mkdir "build\bin"
-)
+if not exist build mkdir build
 
-g++ -std=c++11 ^
-    src\main.cpp ^
-    src\base\UserBase.cpp ^
-    src\base\PlatformManager.cpp ^
-    src\utils\NetworkServer.cpp ^
-    -I include ^
-    -I ..\third_party ^
-    -L ..\third_party\sqlite ^
-    -lsqlite3 ^
-    -lws2_32 ^
-    -o build\bin\iuim_server.exe
+g++ -std=c++17 -I. -o build/user_service.exe src/main.cpp src/services/user_service.cpp -lws2_32
 
 if %ERRORLEVEL% == 0 (
-    echo Compilation successful!
-    echo Executable at: build\bin\iuim_server.exe
+    echo Build successful!
 ) else (
-    echo Compilation failed!
+    echo Build failed!
 )
