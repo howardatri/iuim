@@ -80,6 +80,12 @@
         "xtr1common": "cpp",
         "xtree": "cpp",
         "xutility": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "condition_variable": "cpp",
+        "csignal": "cpp",
+        "fstream": "cpp",
+        "regex": "cpp",
+        "set": "cpp",
+        "unordered_set": "cpp"
     }
 }

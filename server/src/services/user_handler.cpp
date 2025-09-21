@@ -11,39 +11,12 @@ using namespace iuim::utils;
 namespace iuim {
 namespace services {
 
-// 全局数据库管理器实例
-static std::unique_ptr<DatabaseManager> g_dbManager = nullptr;
-
-// 初始化数据库管理器
-bool initDatabaseManager() {
-    if (!g_dbManager) {
-        iuim::utils::Logger::logInfo("Initializing database manager");
-        g_dbManager = std::make_unique<DatabaseManager>();
-        bool result = g_dbManager->initialize();
-        if (!result) {
-            iuim::utils::Logger::logError("Failed to initialize database manager");
-        }
-        return result;
-    }
-    return true;
-}
-
 void handleRegister(const httplib::Request& req, httplib::Response& res) {
-    iuim::utils::Logger::logInfo("Handling register request");
+    Logger::getInstance().logInfo("Handling register request");
     
-    // 确保数据库已初始化
-    if (!g_dbManager && !initDatabaseManager()) {
-        iuim::utils::Logger::logError("Database initialization failed during register request");
-        json errorResponse = {
-            {"code", 500},
-            {"message", "数据库初始化失败"}
-        };
-        res.set_content(errorResponse.dump(), "application/json");
-        return;
-    }
+    json responseJson;
 
     // 解析请求体JSON
-    json responseJson;
     try {
         json requestJson = json::parse(req.body);
         
@@ -63,9 +36,10 @@ void handleRegister(const httplib::Request& req, httplib::Response& res) {
         std::string email = requestJson.value("email", "");
         
         // 注册用户
-        bool success = g_dbManager->registerUser(username, password, nickname, email);
+        bool success = DatabaseManager::getInstance().registerUser(username, password, nickname, email);
         
         if (success) {
+            Logger::getInstance().logInfo("User registered successfully: " + username);
             responseJson = {
                 {"code", 0},
                 {"message", "注册成功"},
@@ -75,12 +49,14 @@ void handleRegister(const httplib::Request& req, httplib::Response& res) {
                 }}
             };
         } else {
+            Logger::getInstance().logError("Failed to register user: " + username);
             responseJson = {
                 {"code", 400},
                 {"message", "用户名已存在"}
             };
         }
     } catch (const std::exception& e) {
+        Logger::getInstance().logError(std::string("Register error: ") + e.what());
         responseJson = {
             {"code", 500},
             {"message", std::string("服务器错误: ") + e.what()}
@@ -91,15 +67,7 @@ void handleRegister(const httplib::Request& req, httplib::Response& res) {
 }
 
 void handleLogin(const httplib::Request& req, httplib::Response& res) {
-    // 确保数据库已初始化
-    if (!g_dbManager && !initDatabaseManager()) {
-        json errorResponse = {
-            {"code", 500},
-            {"message", "数据库初始化失败"}
-        };
-        res.set_content(errorResponse.dump(), "application/json");
-        return;
-    }
+    Logger::getInstance().logInfo("Handling login request");
 
     // 解析请求体JSON
     json responseJson;
@@ -121,9 +89,10 @@ void handleLogin(const httplib::Request& req, httplib::Response& res) {
         
         // 验证登录
         std::string nickname, email;
-        bool success = g_dbManager->verifyLogin(username, password, nickname, email);
+        bool success = DatabaseManager::getInstance().verifyLogin(username, password, nickname, email);
         
         if (success) {
+            Logger::getInstance().logInfo("User login successful: " + username);
             responseJson = {
                 {"code", 0},
                 {"message", "登录成功"},
@@ -134,12 +103,14 @@ void handleLogin(const httplib::Request& req, httplib::Response& res) {
                 }}
             };
         } else {
+            Logger::getInstance().logError("User login failed: " + username);
             responseJson = {
                 {"code", 401},
                 {"message", "用户名或密码错误"}
             };
         }
     } catch (const std::exception& e) {
+        Logger::getInstance().logError(std::string("Login error: ") + e.what());
         responseJson = {
             {"code", 500},
             {"message", std::string("服务器错误: ") + e.what()}

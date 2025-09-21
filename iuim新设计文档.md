@@ -784,43 +784,76 @@ login {"username":"user1","password":"123456","service_id":1}\n
    - 例如：业务逻辑层依赖于抽象的数据访问接口，而不是具体的数据访问实现
    - 使用依赖注入等技术实现松耦合
 
-### 5.2 开发步骤 (优化版)
+### 5.2 开发步骤 (V2 - 面向服务平台优化版)
 #### 5.2.1 第一阶段：端到端连通性验证 (Tracer Bullet)
-实现最小化UserSVC (C++)：监听50051端口，仅提供POST /health-check接口，返回固定JSON响应。
+(已完成)
 
-实现最小化网关 (Node.js)：监听8233 TCP端口，将收到的health_check命令转发至UserSVC的HTTP接口，并回传响应。
+实现最小化UserSVC (C++)：监听50051端口，仅提供POST /health-check接口。
 
-实现最小化客户端 (Go)：创建GUI，包含一个“连接测试”按钮，点击后通过网关调用health_check接口并显示结果。
+实现最小化网关 (Node.js)：监听8233 TCP端口，转发health_check命令。
+
+实现最小化客户端 (Go)：创建GUI，通过“连接测试”按钮调用接口并显示结果。
 
 #### 5.2.2 第二阶段：核心MVP功能 — 用户认证
-深化UserSVC (C++)：
+(已完成)
 
-集成SQLite，创建用户表（Users）。
+深化UserSVC (C++)：集成SQLite，创建用户表，完整实现POST /register和POST /login接口。
 
-完整实现POST /register和POST /login接口的业务逻辑，包括密码哈希处理。
+扩展网关 (Node.js)：新增register和login命令的路由规则。
+
+开发客户端UI (Go)：创建用户注册和登录页面，成功登录后跳转至一个临时的“登录成功”界面。
+
+#### 5.2.3 第三阶段：服务激活与主界面
+目标： 实现平台的核心功能——管理和选择不同的微X服务。这是连接用户认证和具体社交功能的关键枢纽。
+
+实现服务管理 (ServiceSVC, C++)：
+
+这是当前最高优先级的任务。
+
+监听50056端口，集成SQLite，并创建Services表和UserServices表（可预置几条服务数据，如QQ、微信）。
+
+完整实现POST /activate和POST /deactivate接口。
+
+（重要）新增接口：实现POST /query_user_services接口，用于查询指定用户已开通/可开通的服务列表。
+
+URL: POST /query_user_services
+
+请求: { "user_id": 1 }
+
+响应: { "code": 0, "message": "success", "data": { "services": [ { "service_id": 1, "service_name": "QQ", "activated": true }, { "service_id": 2, "service_name": "微信", "activated": false } ] } }
 
 扩展网关 (Node.js)：
 
-新增register和login命令到UserSVC对应接口的路由规则。
+新增activate_service、deactivate_service和query_user_services命令到ServiceSVC对应接口的路由规则。
 
-开发客户端UI (Go)：
+重构客户端UI (Go)：
 
-创建用户注册和登录页面。
+替换“登录成功”界面：将登录后跳转的界面，改为一个全新的“服务大厅”或“主界面”。
 
-实现表单数据采集、命令发送及响应处理，成功登录后跳转至主界面。
+实现服务列表：该界面启动时，自动调用query_user_services命令，获取并以列表或卡片形式展示所有微X服务及其激活状态。
 
-#### 5.2.3 第三阶段：核心社交功能 — 好友与消息
+实现服务操作：为每个服务提供“开通”/“管理”按钮。点击按钮可调用activate_service来开通服务。
+
+实现服务进入：当用户点击一个已开通的服务（例如QQ）时，程序将打开一个新的界面——“QQ服务主界面”，并将服务ID（如service_id: 1）作为参数传递过去。
+
+#### 5.2.4 第四阶段：核心社交功能 (服务内)
+目标： 在用户选择了特定服务后，展示该服务内部的好友和消息功能。
+
 创建好友服务 (FriendSVC, C++)：
 
-监听50054端口，集成SQLite并创建好友表（Friends）。
+监听50054端口，集成SQLite并创建Friends表。
 
 实现POST /add、/delete、/query等好友管理接口。
 
+注：所有接口的业务逻辑都必须严格基于请求中传入的service_id进行操作，以隔离不同服务的好友列表。
+
 创建消息服务 (MsgSVC, C++)：
 
-监听50052端口，集成SQLite并创建消息表（Messages）。
+监听50052端口，集成SQLite并创建Messages表。
 
-实现POST /send（消息入库）和POST /history（拉取历史消息）接口。
+实现POST /send和POST /history接口。
+
+注：同样，所有消息的收发和查询也必须基于service_id。
 
 扩展网关 (Node.js)：
 
@@ -828,30 +861,26 @@ login {"username":"user1","password":"123456","service_id":1}\n
 
 开发客户端功能 (Go)：
 
-在主界面实现好友列表的展示。
+创建“服务主界面”：这就是上一阶段点击“QQ”后进入的界面。
 
-实现点击好友进入聊天窗口、发送消息和展示历史消息的功能。
+实现好友列表：在该界面中，调用query_friend命令，并传入当前服务的service_id，获取并展示该服务下的好友。
 
-#### 5.2.4 第四阶段：功能扩展与完善
+实现聊天功能：点击好友后，打开聊天窗口。发送消息和查询历史记录时，同样必须携带当前服务的service_id。
+
+#### 5.2.5 第四阶段：功能扩展与完善
+(此阶段与原计划类似，但现在逻辑更清晰)
+
 实现群组服务 (GroupSVC, C++)：
 
-监听50055端口，实现POST /join、/quit、/members等群组管理接口。
+监听50055端口，实现POST /join、/quit、/members等接口。
 
-在设计中体现QQ群与微信群的管理特色差异。
+在实现中体现QQ群（可申请）与微信群（仅邀请）在join_type上的逻辑差异。
 
-实现文件服务 (FileSVC, C++)：
+注：所有群组操作依然要基于service_id。
 
-监听50053端口，实现POST /upload和/download接口，处理文件的Base64编解码。
+实现文件服务 (FileSVC, C++) 及 同步更新网关与客户端。
 
-实现服务管理 (ServiceSVC, C++)：
-
-监听50056端口，实现POST /activate和/deactivate接口，管理用户开通的服务。
-
-同步更新网关与客户端：
-
-为所有新功能添加网关路由和客户端UI支持。
-
-#### 5.2.5 第五阶段：测试、优化与文档
+#### 5.2.6 第五阶段：测试、优化与文档
 单元测试：为各服务端核心业务逻辑编写单元测试（如使用GoogleTest）。
 
 集成测试：设计并执行完整的用户场景测试用例（如注册->登录->加好友->聊天）。

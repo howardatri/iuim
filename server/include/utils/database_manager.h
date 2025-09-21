@@ -10,14 +10,12 @@ namespace utils {
 
 class DatabaseManager {
 public:
-    DatabaseManager(const std::string& dbPath = "data/iuim.db");
-    ~DatabaseManager();
-
-    // 初始化数据库
-    bool initialize();
+    // 获取单例实例
+    static DatabaseManager& getInstance();
     
-    // 创建用户表
-    bool createUserTable();
+    // 禁用拷贝构造和赋值操作
+    DatabaseManager(const DatabaseManager&) = delete;
+    void operator=(const DatabaseManager&) = delete;
     
     // 注册新用户
     bool registerUser(const std::string& username, const std::string& password, 
@@ -31,6 +29,16 @@ public:
     bool isUserExists(const std::string& username);
 
 private:
+    // 私有构造函数和析构函数
+    DatabaseManager(const std::string& dbPath = "data/iuim.db");
+    ~DatabaseManager();
+    
+    // 初始化数据库 (现在是私有的)
+    bool initialize();
+    
+    // 创建用户表 (现在是私有的)
+    bool createUserTable();
+    
     // 计算SHA256哈希
     std::string hashPassword(const std::string& password);
     

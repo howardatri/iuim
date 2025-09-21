@@ -6,6 +6,12 @@
 namespace iuim {
 namespace utils {
 
+// 获取单例实例
+Logger& Logger::getInstance() {
+    static Logger instance;
+    return instance;
+}
+
 // 初始化静态互斥锁
 std::mutex Logger::logMutex;
 
