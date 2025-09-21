@@ -9,6 +9,12 @@
 namespace iuim {
 namespace utils {
 
+// 获取单例实例
+DatabaseManager& DatabaseManager::getInstance() {
+    static DatabaseManager instance;
+    return instance;
+}
+
 // 简单的SHA256哈希实现
 std::string DatabaseManager::hashPassword(const std::string& password) {
     // 实际项目中应使用更安全的哈希库，这里为简化实现
@@ -24,6 +30,19 @@ std::string DatabaseManager::hashPassword(const std::string& password) {
 
 DatabaseManager::DatabaseManager(const std::string& dbPath)
     : db_(nullptr), dbPath_(dbPath) {
+    // 在构造函数中执行初始化
+    if (!initialize()) {
+        std::string errorMsg = "Failed to initialize database";
+        Logger::getInstance().logError(errorMsg);
+        throw std::runtime_error(errorMsg);
+    }
+    
+    // 创建用户表
+    if (!createUserTable()) {
+        std::string errorMsg = "Failed to create user table";
+        Logger::getInstance().logError(errorMsg);
+        throw std::runtime_error(errorMsg);
+    }
 }
 
 DatabaseManager::~DatabaseManager() {
@@ -44,13 +63,13 @@ bool DatabaseManager::initialize() {
     int rc = sqlite3_open(dbPath_.c_str(), &db_);
     if (rc != SQLITE_OK) {
         std::string errorMsg = "Cannot open database: " + std::string(sqlite3_errmsg(db_));
-        iuim::utils::Logger::logError(errorMsg);
+        Logger::getInstance().logError(errorMsg);
         sqlite3_close(db_);
         db_ = nullptr;
         return false;
     }
 
-    iuim::utils::Logger::logInfo("Database connection opened successfully: " + dbPath_);
+    iuim::utils::Logger::getInstance().logInfo("Database connection opened successfully: " + dbPath_);
     
     // 创建用户表
     return createUserTable();
@@ -75,29 +94,29 @@ bool DatabaseManager::createUserTable() {
     
     if (rc != SQLITE_OK) {
         std::string errorMsg = "SQL error: " + std::string(errMsg);
-        iuim::utils::Logger::logError(errorMsg);
+        iuim::utils::Logger::getInstance().logError(errorMsg);
         sqlite3_free(errMsg);
         return false;
     }
     
-    iuim::utils::Logger::logInfo("User table created or already exists");
+    iuim::utils::Logger::getInstance().logInfo("User table created or already exists");
     return true;
 }
 
 bool DatabaseManager::registerUser(const std::string& username, const std::string& password, 
                                   const std::string& nickname, const std::string& email) {
     if (!db_) {
-        iuim::utils::Logger::logError("Database not initialized");
+        iuim::utils::Logger::getInstance().logError("Database not initialized");
         return false;
     }
 
     // 检查用户是否已存在
     if (isUserExists(username)) {
-        iuim::utils::Logger::logInfo("Registration failed: Username already exists: " + username);
+        iuim::utils::Logger::getInstance().logInfo("Registration failed: Username already exists: " + username);
         return false;
     }
     
-    iuim::utils::Logger::logInfo("Registering new user: " + username);
+    iuim::utils::Logger::getInstance().logInfo("Registering new user: " + username);
 
     // 哈希密码
     std::string hashedPassword = hashPassword(password);
