@@ -21,9 +21,23 @@ func main() {
 
 	// 显示登录界面
 	showLoginView = func() {
-		loginView := ui.LoginView(w, netManager, func() {
+		loginView := ui.LoginView(w, netManager, func(result map[string]interface{}) {
 			// 登录成功后的回调
-			// 这里可以添加登录成功后的逻辑，如显示主界面等
+			// 从嵌套结构中解析userID
+			println("test")
+			//打印接收到的json
+			println(result)
+			if data, ok := result["data"].(map[string]interface{}); ok {
+				if userInfo, ok := data["user_info"].(map[string]interface{}); ok {
+					if userID, ok := userInfo["user_id"].(float64); ok {
+						//打印userID
+						println("登录成功，用户ID:", userID)
+						// 创建并显示服务大厅视图
+						serviceHallView := ui.NewServiceHallView(w, netManager, int(userID))
+						w.SetContent(serviceHallView.GetContainer())
+					}
+				}
+			}
 		}, func() {
 			// 点击"去注册"按钮的回调
 			showRegisterView()

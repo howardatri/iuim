@@ -9,3 +9,112 @@ IUIM系统设计文档.md 807-811 接下来服务端完成第四阶段开发，�
 
 
 按照中的内容，注意事项为，然后以为目标进行阶段一的服务端 网关 客户端开发，完成后编译并分别运行。
+
+
+项目目标： 完整地完成第三阶段客户端的开发任务。将用户登录后的临时界面，彻底替换为一个功能性的“服务大厅”，让用户可以选择和管理服务。
+
+前置条件：
+
+服务端ServiceSVC和网关均已支持服务管理的相关命令。
+
+您将一次性完成客户端网络层、UI层和主程序流程的全部修改。
+
+任务指令：
+请严格按照以下三个部分的顺序，完成客户端代码的全部实现和重构。
+
+第一部分：扩展网络层功能
+操作文件: client/internal/network/manager.go
+
+任务: 在NetworkManager结构体中，添加以下三个新方法。这些方法应负责封装并向网关发送对应的TCP-Line命令，并处理响应。
+
+QueryUserServices(userID int) (string, error)
+
+ActivateService(userID, serviceID int) (string, error)
+
+DeactivateService(userID, serviceID int) (string, error)
+
+第二部分：创建全新的“服务大厅”UI (详细步骤)
+操作文件: 在client/internal/ui/目录下，创建一个新文件service_hall_view.go。
+
+任务: 在此文件中，严格按照以下详细步骤，实现一个功能完善的ServiceHallView组件。
+
+步骤 2.1：定义数据模型和UI组件结构
+首先，在文件顶部定义所需的数据结构。
+
+Go
+
+// Service 定义了从后端获取的单个服务的数据结构
+type Service struct {
+    ServiceID   int    `json:"service_id"`
+    ServiceName string `json:"service_name"`
+    Activated   bool   `json:"activated"`
+}
+
+// ServiceHallView 是我们的主UI组件
+type ServiceHallView struct {
+    fyne.CanvasObject
+
+    // 依赖项
+    window          fyne.Window
+    netManager      *network.Manager // 引用网络管理器
+    userID          int
+
+    // 内部状态和组件
+    services        []Service // 存储从服务器获取的服务列表
+    serviceList     *widget.List // Fyne的列表组件
+    onEnterService  func(serviceID int, serviceName string) // 切换到服务界面的回调函数
+}
+步骤 2.2：实现UI组件的构造函数和静态布局
+创建ServiceHallView的构造函数NewServiceHallView。
+
+函数签名应为 func NewServiceHallView(window fyne.Window, netManager *network.Manager, userID int, onEnter func(int, string)) *ServiceHallView。
+
+在函数内部，初始化ServiceHallView结构体。
+
+创建view.serviceList。这是一个widget.NewList，为其提供三个回调函数的框架（Length, CreateItem, UpdateItem）。
+
+使用一个垂直布局容器 (container.NewVBox) 将一个标题标签（例如widget.NewLabel("服务大厅")）和view.serviceList组合起来，并将其赋值给view.CanvasObject。
+
+步骤 2.3：实现列表项的动态更新逻辑
+详细实现widget.NewList中的UpdateItem回调函数的逻辑。
+
+在UpdateItem回调函数中，获取对应索引的服务数据serviceData。
+
+获取列表项模板中的Label和Button组件。
+
+设置Label的文本为serviceData.ServiceName。
+
+根据serviceData.Activated的值，设置按钮的文本和行为：
+
+如果Activated为true，按钮文本设为“进入管理”，其OnTapped事件应调用view.onEnterService(serviceData.ServiceID, serviceData.ServiceName)。
+
+如果Activated为false，按钮文本设为“开通服务”，其OnTapped事件应调用view.netManager.ActivateService(...)，并在成功后调用view.refreshServices()方法来刷新整个列表。
+
+步骤 2.4：实现数据获取和刷新逻辑
+为ServiceHallView添加一个名为refreshServices的新方法。
+
+在该方法中，调用view.netManager.QueryUserServices(view.userID)。
+
+如果成功，解析返回的JSON数据，并将其填充到view.services切片中。
+
+最后，必须调用view.serviceList.Refresh()来更新UI的显示。
+
+步骤 2.5：完成初始加载
+在NewServiceHallView构造函数的末尾，返回view之前，启动一个新的goroutine来调用view.refreshServices()，以防止UI在等待网络响应时被阻塞。
+
+第三部分：改造主程序流程
+操作文件: client/cmd/main.go
+
+任务:
+
+修改main函数或登录成功后的回调逻辑。
+
+当用户成功登录后，不再显示临时的欢迎界面。
+
+改为调用ui.NewServiceHallView(...)来创建我们刚刚设计的服务大厅组件。
+
+确保将登录成功后获取到的UserID和用于处理“进入管理”的回调函数（目前可以是一个简单的打印日志的函数）正确地传递给构造函数。
+
+使用window.SetContent()将窗口内容设置为新创建的ServiceHallView。
+
+这是第三阶段客户端开发的完整指令。请在完成所有部分的修改后停止。

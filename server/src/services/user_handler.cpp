@@ -92,17 +92,30 @@ void handleLogin(const httplib::Request& req, httplib::Response& res) {
         bool success = DatabaseManager::getInstance().verifyLogin(username, password, nickname, email);
         
         if (success) {
-            Logger::getInstance().logInfo("User login successful: " + username);
-            responseJson = {
-                {"code", 0},
-                {"message", "登录成功"},
-                {"data", {
-                    {"username", username},
-                    {"nickname", nickname},
-                    {"email", email}
-                }}
-            };
-        } else {
+            int userId = DatabaseManager::getInstance().getUserIdByUsername(username); // 确保这一步已实现
+
+            if (userId != -1) { // 假设找不到用户时返回-1
+                Logger::getInstance().logInfo("User login successful: " + username);
+                responseJson = {
+                    {"code", 0},
+                    {"message", "登录成功"},
+                    {"data", {
+                        {"user_info", {
+                            {"user_id", userId},
+                            {"username", username},
+                            {"nickname", nickname},
+                            {"email", email}
+                        }}
+                    }}
+                };
+            } else {
+                Logger::getInstance().logError("Could not retrieve user_id for: " + username);
+                responseJson = {
+                    {"code", 500},
+                    {"message", "服务器内部错误：无法获取用户信息"}
+                };
+            }
+        } else { // ...原有的登录失败逻辑...
             Logger::getInstance().logError("User login failed: " + username);
             responseJson = {
                 {"code", 401},
