@@ -581,6 +581,30 @@ IUIM系统采用CGS（客户端-网关-服务端）架构，由以下主要组�
   }
   ```
 
+##### 4.3.5.3 查询服务
+- **URL**: POST /query_user_services
+
+- **请求参数**: 
+```json
+{ "user_id": 1 }
+```
+
+- **响应参数**:
+```json
+ { "code": 0, 
+ "message": "success", 
+ "data": { 
+  "services": [ 
+    { "service_id": 1, 
+    "service_name": "QQ", 
+    "activated": true }, 
+    { "service_id": 2, 
+    "service_name": "微信", 
+    "activated": false } 
+    ] 
+    } }
+
+```
 #### 4.3.6 文件服务接口（FileSVC）
 
 ##### 4.3.6.1 上传文件

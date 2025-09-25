@@ -7,6 +7,11 @@ const USER_SVC_HOST = 'localhost';
 const USER_SVC_PORT = 50051;
 const USER_SVC_BASE_URL = `http://${USER_SVC_HOST}:${USER_SVC_PORT}`;
 
+// ServiceSVC配置
+const SERVICE_SVC_HOST = 'localhost';
+const SERVICE_SVC_PORT = 50056;
+const SERVICE_SVC_BASE_URL = `http://${SERVICE_SVC_HOST}:${SERVICE_SVC_PORT}`;
+
 // 创建TCP服务器
 const server = net.createServer((socket) => {
   console.log('Client connected');
@@ -132,6 +137,129 @@ const server = net.createServer((socket) => {
       } catch (error) {
         console.error(`Error parsing login command:`, error.message);
         socket.write(`login_resp ${JSON.stringify({
+          code: 400,
+          message: 'Invalid JSON format',
+          error: error.message
+        })}\n`);
+      }
+    } else if (cmd === 'activate_service') {
+      // 处理激活服务命令
+      try {
+        // 获取JSON字符串部分
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const serviceData = JSON.parse(jsonStr);
+        
+        console.log(`Processing activate_service command with data:`, serviceData);
+        
+        // 转发到ServiceSVC的activate接口
+        axios.post(`${SERVICE_SVC_BASE_URL}/activate`, serviceData, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+          console.log(`Activate service response from ServiceSVC:`, response.data);
+          // 将响应发送回客户端，添加命令前缀
+          socket.write(`activate_service_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+          console.error(`Error in activate_service request:`, error.message);
+          let errorResponse = {
+            code: 500,
+            message: 'Error connecting to ServiceSVC',
+            error: error.message
+          };
+          
+          // 如果服务器返回了错误响应
+          if (error.response && error.response.data) {
+            errorResponse = error.response.data;
+          }
+          
+          socket.write(`activate_service_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+      } catch (error) {
+        console.error(`Error parsing activate_service command:`, error.message);
+        socket.write(`activate_service_resp ${JSON.stringify({
+          code: 400,
+          message: 'Invalid JSON format',
+          error: error.message
+        })}\n`);
+      }
+    } else if (cmd === 'deactivate_service') {
+      // 处理停用服务命令
+      try {
+        // 获取JSON字符串部分
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const serviceData = JSON.parse(jsonStr);
+        
+        console.log(`Processing deactivate_service command with data:`, serviceData);
+        
+        // 转发到ServiceSVC的deactivate接口
+        axios.post(`${SERVICE_SVC_BASE_URL}/deactivate`, serviceData, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+          console.log(`Deactivate service response from ServiceSVC:`, response.data);
+          // 将响应发送回客户端，添加命令前缀
+          socket.write(`deactivate_service_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+          console.error(`Error in deactivate_service request:`, error.message);
+          let errorResponse = {
+            code: 500,
+            message: 'Error connecting to ServiceSVC',
+            error: error.message
+          };
+          
+          // 如果服务器返回了错误响应
+          if (error.response && error.response.data) {
+            errorResponse = error.response.data;
+          }
+          
+          socket.write(`deactivate_service_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+      } catch (error) {
+        console.error(`Error parsing deactivate_service command:`, error.message);
+        socket.write(`deactivate_service_resp ${JSON.stringify({
+          code: 400,
+          message: 'Invalid JSON format',
+          error: error.message
+        })}\n`);
+      }
+    } else if (cmd === 'query_user_services') {
+      // 处理查询用户服务命令
+      try {
+        // 获取JSON字符串部分
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const userData = JSON.parse(jsonStr);
+        
+        console.log(`Processing query_user_services command with data:`, userData);
+        
+        // 转发到ServiceSVC的query_user_services接口
+        axios.post(`${SERVICE_SVC_BASE_URL}/query_user_services`, userData, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+          console.log(`Query user services response from ServiceSVC:`, response.data);
+          // 将响应发送回客户端，添加命令前缀
+          socket.write(`query_user_services_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+          console.error(`Error in query_user_services request:`, error.message);
+          let errorResponse = {
+            code: 500,
+            message: 'Error connecting to ServiceSVC',
+            error: error.message
+          };
+          
+          // 如果服务器返回了错误响应
+          if (error.response && error.response.data) {
+            errorResponse = error.response.data;
+          }
+          
+          socket.write(`query_user_services_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+      } catch (error) {
+        console.error(`Error parsing query_user_services command:`, error.message);
+        socket.write(`query_user_services_resp ${JSON.stringify({
           code: 400,
           message: 'Invalid JSON format',
           error: error.message

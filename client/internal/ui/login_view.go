@@ -12,7 +12,7 @@ import (
 )
 
 // LoginView 创建登录界面
-func LoginView(window fyne.Window, netManager *network.NetworkManager, onLoginSuccess func(), onRegister func()) fyne.CanvasObject {
+func LoginView(window fyne.Window, netManager *network.NetworkManager, onLoginSuccess func(result map[string]interface{}), onRegister func()) fyne.CanvasObject {
 	// 创建用户名输入框
 	usernameEntry := widget.NewEntry()
 	usernameEntry.SetPlaceHolder("请输入用户名")
@@ -50,12 +50,27 @@ func LoginView(window fyne.Window, netManager *network.NetworkManager, onLoginSu
 			return
 		}
 
+		// 从 data -> user_info 的嵌套结构中解析用户ID
+		userID := 0
+		if data, ok := result["data"].(map[string]interface{}); ok {
+			if userInfo, ok := data["user_info"].(map[string]interface{}); ok {
+				if idFloat, ok := userInfo["user_id"].(float64); ok {
+					userID = int(idFloat)
+				}
+			}
+		}
+
+		if userID == 0 {
+			dialog.ShowError(fmt.Errorf("无法从登录响应中获取有效的用户ID，请检查服务端响应"), window)
+			return
+		}
+
 		// 登录成功
 		dialog.ShowInformation("登录成功", "欢迎回来！", window)
 
 		// 调用登录成功回调
 		if onLoginSuccess != nil {
-			onLoginSuccess()
+			onLoginSuccess(result)
 		}
 	})
 

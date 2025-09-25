@@ -43,6 +43,13 @@ DatabaseManager::DatabaseManager(const std::string& dbPath)
         Logger::getInstance().logError(errorMsg);
         throw std::runtime_error(errorMsg);
     }
+    
+    // 创建服务表和用户服务关系表
+    if (!createServiceTables()) {
+        std::string errorMsg = "Failed to create service tables";
+        Logger::getInstance().logError(errorMsg);
+        throw std::runtime_error(errorMsg);
+    }
 }
 
 DatabaseManager::~DatabaseManager() {
@@ -211,6 +218,190 @@ bool DatabaseManager::isUserExists(const std::string& username) {
     
     sqlite3_finalize(stmt);
     return exists;
+}
+
+bool DatabaseManager::createServiceTables() {
+    if (!db_) return false;
+
+    // 创建Services表
+    const char* sqlServices = 
+        "CREATE TABLE IF NOT EXISTS Services ("
+        "id INTEGER PRIMARY KEY,"
+        "name TEXT NOT NULL UNIQUE"
+        ");";
+
+    // 创建UserServices表
+    const char* sqlUserServices = 
+        "CREATE TABLE IF NOT EXISTS UserServices ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "user_id INTEGER NOT NULL,"
+        "service_id INTEGER NOT NULL,"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "UNIQUE(user_id, service_id),"
+        "FOREIGN KEY(user_id) REFERENCES Users(id),"
+        "FOREIGN KEY(service_id) REFERENCES Services(id)"
+        ");";
+
+    // 插入初始服务数据
+    const char* sqlInsertServices = 
+        "INSERT OR IGNORE INTO Services (id, name) VALUES "
+        "(1, 'QQ'), (2, '微信');";
+
+    char* errMsg = nullptr;
+    
+    // 执行创建Services表
+    int rc = sqlite3_exec(db_, sqlServices, nullptr, nullptr, &errMsg);
+    if (rc != SQLITE_OK) {
+        std::string errorMsg = "SQL error creating Services table: " + std::string(errMsg);
+        Logger::getInstance().logError(errorMsg);
+        sqlite3_free(errMsg);
+        return false;
+    }
+    
+    // 执行创建UserServices表
+    rc = sqlite3_exec(db_, sqlUserServices, nullptr, nullptr, &errMsg);
+    if (rc != SQLITE_OK) {
+        std::string errorMsg = "SQL error creating UserServices table: " + std::string(errMsg);
+        Logger::getInstance().logError(errorMsg);
+        sqlite3_free(errMsg);
+        return false;
+    }
+    
+    // 执行插入初始服务数据
+    rc = sqlite3_exec(db_, sqlInsertServices, nullptr, nullptr, &errMsg);
+    if (rc != SQLITE_OK) {
+        std::string errorMsg = "SQL error inserting initial services: " + std::string(errMsg);
+        Logger::getInstance().logError(errorMsg);
+        sqlite3_free(errMsg);
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Service tables created successfully");
+    return true;
+}
+
+bool DatabaseManager::activateUserService(int userId, int serviceId) {
+    if (!db_) return false;
+    
+    const char* sql = 
+        "INSERT OR IGNORE INTO UserServices (user_id, service_id) "
+        "VALUES (?, ?);";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    sqlite3_bind_int(stmt, 2, serviceId);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to activate service: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    return true;
+}
+
+bool DatabaseManager::deactivateUserService(int userId, int serviceId) {
+    if (!db_) return false;
+    
+    const char* sql = 
+        "DELETE FROM UserServices WHERE user_id = ? AND service_id = ?;";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    sqlite3_bind_int(stmt, 2, serviceId);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to deactivate service: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    return true;
+}
+
+bool DatabaseManager::queryUserServices(int userId, std::string& jsonResult) {
+    if (!db_) return false;
+    
+    const char* sql = 
+        "SELECT s.id, s.name, "
+        "CASE WHEN us.id IS NOT NULL THEN 1 ELSE 0 END as activated "
+        "FROM Services s "
+        "LEFT JOIN UserServices us ON s.id = us.service_id AND us.user_id = ?;";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    
+    jsonResult = "[";
+    bool first = true;
+    
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int id = sqlite3_column_int(stmt, 0);
+        const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        int activated = sqlite3_column_int(stmt, 2);
+        
+        if (!first) {
+            jsonResult += ",";
+        }
+        
+        jsonResult += "{\"id\":" + std::to_string(id) + 
+                      ",\"name\":\"" + std::string(name) + "\"" +
+                      ",\"activated\":" + std::to_string(activated) + "}";
+        
+        first = false;
+    }
+    
+    jsonResult += "]";
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to query user services: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    return true;
+}
+
+// 根据用户名获取用户ID
+int DatabaseManager::getUserIdByUsername(const std::string& username) {
+    const char* sql = "SELECT id FROM users WHERE username = ?";
+    sqlite3_stmt* stmt = nullptr;
+    
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare statement for getUserIdByUsername");
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
+    
+    int userId = -1;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        userId = sqlite3_column_int(stmt, 0);
+    }
+    
+    sqlite3_finalize(stmt);
+    return userId;
 }
 
 } // namespace utils

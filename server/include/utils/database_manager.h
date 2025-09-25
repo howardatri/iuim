@@ -27,6 +27,18 @@ public:
     
     // 检查用户名是否已存在
     bool isUserExists(const std::string& username);
+    
+    // 激活用户服务
+    bool activateUserService(int userId, int serviceId);
+    
+    // 停用用户服务
+    bool deactivateUserService(int userId, int serviceId);
+    
+    // 查询用户的所有服务及其状态
+    bool queryUserServices(int userId, std::string& jsonResult);
+    
+    // 根据用户名获取用户ID
+    int getUserIdByUsername(const std::string& username);
 
 private:
     // 私有构造函数和析构函数
@@ -38,6 +50,9 @@ private:
     
     // 创建用户表 (现在是私有的)
     bool createUserTable();
+    
+    // 创建服务表和用户服务关系表 (私有的)
+    bool createServiceTables();
     
     // 计算SHA256哈希
     std::string hashPassword(const std::string& password);
