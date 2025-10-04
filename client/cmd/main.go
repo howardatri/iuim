@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"fyne-im/internal/ui"
 	"fyne-im/network"
 
@@ -24,16 +25,21 @@ func main() {
 		loginView := ui.LoginView(w, netManager, func(result map[string]interface{}) {
 			// 登录成功后的回调
 			// 从嵌套结构中解析userID
-			println("test")
+			fmt.Println("test")
 			//打印接收到的json
 			println(result)
 			if data, ok := result["data"].(map[string]interface{}); ok {
 				if userInfo, ok := data["user_info"].(map[string]interface{}); ok {
-					if userID, ok := userInfo["user_id"].(float64); ok {
+					if userIDFloat, ok := userInfo["user_id"].(float64); ok {
+						// 打印原始的float64值和它的类型，以供调试
+						println("成功解析到user_id (类型: %T, 值: %f)\n", userIDFloat, userIDFloat)
+						// 将float64安全地转换为int，以供程序后续使用
+						userID := int(userIDFloat)
+						println("转换为整数后的userID (类型: %T, 值: %d)\n", userID, userID)
 						//打印userID
 						println("登录成功，用户ID:", userID)
 						// 创建并显示服务大厅视图
-						serviceHallView := ui.NewServiceHallView(w, netManager, int(userID))
+						serviceHallView := ui.NewServiceHallView(w, netManager, userID)
 						w.SetContent(serviceHallView.GetContainer())
 					}
 				}

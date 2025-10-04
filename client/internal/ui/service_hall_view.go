@@ -1,52 +1,49 @@
 package ui
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
-
-	"fyne-im/network"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	
+	"fyne-im/network"
 )
 
-// Service 定义服务数据模型，JSON标签与文档约定一致
+// Service 定义服务数据模型
 type Service struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Activated   bool   `json:"activated"`
+	ServiceID   int
+	ServiceName string
+	Description string
+	Activated   bool
 }
 
-// ServiceResponse 定义服务查询响应结构
-type ServiceResponse struct {
-	Code int `json:"code"`
-	Data struct {
-		Services []Service `json:"services"`
-	} `json:"data"`
+// ServiceCard 封装了单个服务卡片的所有UI组件和数据
+type ServiceCard struct {
+	card         *widget.Card
+	statusLabel  *widget.Label
+	actionButton *widget.Button
+	serviceData  Service // 存储静态服务数据
 }
 
 // ServiceHallView 服务大厅视图组件
 type ServiceHallView struct {
-	container    *fyne.Container
-	serviceList  *widget.List
-	services     []Service
-	netManager   *network.NetworkManager
-	userID       int
-	window       fyne.Window
-	refreshFunc  func()
+	container   *fyne.Container
+	serviceGrid *fyne.Container
+	window      fyne.Window
+	cards       []*ServiceCard // 用于管理所有卡片
+	netManager  *network.NetworkManager // 网络管理器
+	userID      int // 用户ID
 }
 
 // NewServiceHallView 创建新的服务大厅视图
 func NewServiceHallView(window fyne.Window, netManager *network.NetworkManager, userID int) *ServiceHallView {
 	view := &ServiceHallView{
+		window:     window,
+		cards:      []*ServiceCard{},
 		netManager: netManager,
 		userID:     userID,
-		window:     window,
-		services:   []Service{},
 	}
 
 	// 创建标题
@@ -54,95 +51,101 @@ func NewServiceHallView(window fyne.Window, netManager *network.NetworkManager, 
 	title.TextStyle = fyne.TextStyle{Bold: true}
 	title.Alignment = fyne.TextAlignCenter
 
-	// 创建服务列表
-	view.serviceList = widget.NewList(
-		// 列表长度函数
-		func() int {
-			return len(view.services)
-		},
-		// 创建列表项函数
-		func() fyne.CanvasObject {
-			nameLabel := widget.NewLabel("服务名称")
-			nameLabel.TextStyle = fyne.TextStyle{Bold: true}
-			
-			descLabel := widget.NewLabel("服务描述")
-			
-			actionButton := widget.NewButton("操作", nil)
-			
-			return container.NewBorder(
-				nil, nil, nil, actionButton,
-				container.NewVBox(nameLabel, descLabel),
-			)
-		},
-		// 更新列表项函数
-		func(id widget.ListItemID, item fyne.CanvasObject) {
-			service := view.services[id]
-			
-			// 获取容器中的组件
-			border := item.(*fyne.Container)
-			vbox := border.Objects[0].(*fyne.Container)
-			nameLabel := vbox.Objects[0].(*widget.Label)
-			descLabel := vbox.Objects[1].(*widget.Label)
-			actionButton := border.Objects[1].(*widget.Button)
-			
-			// 更新标签内容
-			nameLabel.SetText(service.Name)
-			descLabel.SetText(service.Description)
-			
-			// 根据服务激活状态设置按钮
-			if service.Activated {
-				actionButton.SetText("进入管理")
-				actionButton.OnTapped = func() {
-					dialog.ShowInformation("服务管理", fmt.Sprintf("进入 %s 服务管理界面", service.Name), view.window)
-				}
-			} else {
-				actionButton.SetText("开通服务")
-				actionButton.OnTapped = func() {
-					// 调用激活服务API
-					go func() {
-						result, err := view.netManager.ActivateService(view.userID, service.ID)
-						if err != nil {
-							dialog.ShowError(fmt.Errorf("激活服务失败: %v", err), view.window)
-							return
-						}
-						
-						// 检查激活结果
-						code, ok := result["code"].(float64)
-						if !ok || code != 0 {
-							message := "激活服务失败"
-							if msg, ok := result["message"].(string); ok {
-								message = msg
-							}
-							dialog.ShowError(fmt.Errorf(message), view.window)
-							return
-						}
-						
-						// 激活成功，刷新服务列表
-						view.refreshServices()
-					}()
-				}
-			}
-		},
-	)
+	// 创建服务网格容器
+	view.serviceGrid = container.NewGridWithColumns(2)
 
-	// 创建刷新按钮
-	refreshButton := widget.NewButton("刷新", func() {
-		view.refreshServices()
-	})
+	// 硬编码服务列表
+	services := []Service{
+		{
+			ServiceID:   1,
+			ServiceName: "QQ",
+			Description: "腾讯即时通讯服务",
+			Activated:   true,
+		},
+		{
+			ServiceID:   2,
+			ServiceName: "微信",
+			Description: "微信社交平台",
+			Activated:   false,
+		},
+		{
+			ServiceID:   3,
+			ServiceName: "微博",
+			Description: "新浪微博社交媒体",
+			Activated:   false,
+		},
+		{
+			ServiceID:   4,
+			ServiceName: "添加服务",
+			Description: "添加更多服务",
+			Activated:   false,
+		},
+	}
+
+	// 为每个服务创建卡片
+	for _, s := range services {
+		// 创建状态标签
+		statusLabel := widget.NewLabel("状态：未知")
+		
+		// 创建操作按钮
+		var actionButton *widget.Button
+
+		if s.ServiceName == "添加服务" {
+			// 特殊样式的添加服务按钮
+			actionButton = widget.NewButton("添加", func() {
+				dialog.ShowInformation("添加服务", "即将添加新服务", window)
+			})
+		} else {
+			// 所有其他服务都使用"查询状态"按钮
+			actionButton = widget.NewButton("查询状态", func() {
+				// 暂时留空
+			})
+		}
+
+		// 创建卡片内容
+		content := container.NewVBox(
+			statusLabel,
+			container.NewCenter(actionButton),
+		)
+
+		// 创建卡片
+		card := widget.NewCard(
+			s.ServiceName,
+			s.Description,
+			content,
+		)
+
+		// 创建ServiceCard实例
+		serviceCard := &ServiceCard{
+			card:         card,
+			statusLabel:  statusLabel,
+			actionButton: actionButton,
+			serviceData:  s,
+		}
+
+		// 将卡片添加到网格
+		view.serviceGrid.Add(card)
+		
+		// 将ServiceCard实例添加到管理切片
+		view.cards = append(view.cards, serviceCard)
+		
+		// 为非"添加服务"的卡片设置查询状态按钮的回调
+		if s.ServiceName != "添加服务" {
+			// 使用局部变量捕获当前卡片，避免闭包陷阱
+			card := serviceCard
+			card.actionButton.OnTapped = func() {
+				view.queryCardStatus(card)
+			}
+		}
+	}
 
 	// 组装界面
 	view.container = container.NewBorder(
-		container.NewVBox(title, widget.NewSeparator()), 
-		refreshButton, 
-		nil, nil, 
-		view.serviceList,
+		container.NewVBox(title, widget.NewSeparator()),
+		nil,
+		nil, nil,
+		view.serviceGrid,
 	)
-
-	// 保存刷新函数以便外部调用
-	view.refreshFunc = view.refreshServices
-
-	// 初始加载数据
-	go view.refreshServices()
 
 	return view
 }
@@ -152,31 +155,144 @@ func (v *ServiceHallView) GetContainer() fyne.CanvasObject {
 	return v.container
 }
 
-// refreshServices 刷新服务列表
-func (v *ServiceHallView) refreshServices() {
-	// 调用网络管理器查询用户服务
-	result, err := v.netManager.QueryUserServices(v.userID)
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("获取服务列表失败: %v", err), v.window)
-		return
-	}
+// queryCardStatus 查询卡片服务状态
+// queryCardStatus 查询卡片服务状态
+func (v *ServiceHallView) queryCardStatus(card *ServiceCard) {
+    // 启动一个新的goroutine来执行网络请求
+    go func() {
+        // 调用网络管理器查询用户服务
+        result, err := v.netManager.QueryUserServices(v.userID)
+        
+        fyne.Do(func() {
+            if err != nil {
+                dialog.ShowError(err, v.window)
+                return
+            }
+            
+            // 检查返回结果是否成功 - 使用 code 字段而不是 success
+            code, ok := result["code"].(float64)
+            if !ok || code != 0 {
+                errMsg, _ := result["message"].(string)
+                if errMsg == "" {
+                    errMsg = "查询服务失败"
+                }
+                dialog.ShowError(fmt.Errorf(errMsg), v.window)
+                return
+            }
+            
+            // 解析服务列表 - 从 data 字段中获取
+            data, ok := result["data"].(map[string]interface{})
+            if !ok {
+                dialog.ShowError(fmt.Errorf("无法解析响应数据"), v.window)
+                return
+            }
+            
+            servicesData, ok := data["services"].([]interface{})
+            if !ok {
+                dialog.ShowError(fmt.Errorf("无法解析服务列表"), v.window)
+                return
+            }
+            
+            // 查找匹配的服务
+            for _, serviceData := range servicesData {
+                serviceMap, ok := serviceData.(map[string]interface{})
+                if !ok {
+                    continue
+                }
+                
+                serviceIDFloat, ok := serviceMap["id"].(float64)  // 注意字段名是 "id" 不是 "service_id"
+                if !ok {
+                    continue
+                }
+                
+                serviceID := int(serviceIDFloat)
+                
+                // 找到匹配的服务
+                if serviceID == card.serviceData.ServiceID {
+                    // 创建更新后的服务信息
+                    activatedFloat, _ := serviceMap["activated"].(float64)
+                    updatedService := Service{
+                        ServiceID:   serviceID,
+                        ServiceName: card.serviceData.ServiceName, // 保持原有的服务名
+                        Description: card.serviceData.Description, // 保持原有的描述
+                        Activated:   activatedFloat == 1,          // 注意：数据库返回 0/1，但客户端期望 bool
+                    }
+                    
+                    // 更新卡片UI
+                    v.updateCardUI(card, updatedService)
+                    break
+                }
+            }
+        })
+    }()
+}
 
-	// 将结果转换为JSON字符串
-	jsonData, err := json.Marshal(result)
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("解析服务数据失败: %v", err), v.window)
-		return
-	}
-
-	// 解析响应
-	var response ServiceResponse
-	if err := json.Unmarshal(jsonData, &response); err != nil {
-		log.Printf("解析JSON失败: %v, 原始数据: %s", err, string(jsonData))
-		dialog.ShowError(fmt.Errorf("解析服务数据失败: %v", err), v.window)
-		return
-	}
-
-	// 更新服务列表
-	v.services = response.Data.Services
-	v.serviceList.Refresh()
+// updateCardUI 更新卡片UI
+func (v *ServiceHallView) updateCardUI(card *ServiceCard, serviceInfo Service) {
+    // 更新服务数据
+    card.serviceData = serviceInfo
+    
+    // 根据服务激活状态更新UI
+    if serviceInfo.Activated {
+        // 更新状态标签
+        card.statusLabel.SetText("状态：已开通")
+        
+        // 更新按钮文本和操作
+        card.actionButton.SetText("进入管理")
+        card.actionButton.OnTapped = func() {
+            // 根据服务ID跳转到对应的服务界面
+            serviceView := CreateServiceView(v.window, v.netManager, v.userID, serviceInfo.ServiceID, serviceInfo.ServiceName)
+            v.window.SetContent(serviceView)
+        }
+    } else {
+        // 更新状态标签
+        card.statusLabel.SetText("状态：未开通")
+        
+        // 更新按钮文本和操作
+        card.actionButton.SetText("开通服务")
+        card.actionButton.OnTapped = func() {
+            dialog.ShowInformation(
+                "开通服务", 
+                fmt.Sprintf("即将开通%s服务", serviceInfo.ServiceName), 
+                v.window,
+            )
+			// 启动goroutine调用激活服务接口
+    go func() {
+        // 调用网络管理器激活服务
+        result, err := v.netManager.ActivateService(v.userID, serviceInfo.ServiceID)
+        
+        // 使用fyne.Do确保UI更新在主线程
+        fyne.Do(func() {
+            if err != nil {
+                dialog.ShowError(err, v.window)
+                return
+            }
+            
+            // 检查响应结果
+            code, ok := result["code"].(float64)
+            if !ok || code != 0 {
+                errMsg, _ := result["message"].(string)
+                if errMsg == "" {
+                    errMsg = "开通服务失败"
+                }
+                dialog.ShowError(fmt.Errorf(errMsg), v.window)
+                return
+            }
+            
+            // 开通成功，显示提示并重新查询状态
+            dialog.ShowInformation(
+                "开通成功", 
+                fmt.Sprintf("%s服务开通成功！", serviceInfo.ServiceName), 
+                v.window,
+            )
+            
+            // 重新查询服务状态以更新UI
+            v.queryCardStatus(card)
+        })
+    }()
+        }
+    }
+    
+    // 刷新卡片UI
+    card.card.Refresh()
 }
