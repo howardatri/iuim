@@ -223,29 +223,33 @@ bool DatabaseManager::isUserExists(const std::string& username) {
 bool DatabaseManager::createServiceTables() {
     if (!db_) return false;
 
-    // 创建Services表
+    // 创建Services表 - 按照设计文档4.2.2节添加description字段
     const char* sqlServices = 
         "CREATE TABLE IF NOT EXISTS Services ("
         "id INTEGER PRIMARY KEY,"
-        "name TEXT NOT NULL UNIQUE"
+        "name TEXT NOT NULL UNIQUE,"
+        "description TEXT"
         ");";
 
-    // 创建UserServices表
+    // 创建UserServices表 - 按照设计文档4.2.3节添加service_user_id, activated, activate_time字段
     const char* sqlUserServices = 
         "CREATE TABLE IF NOT EXISTS UserServices ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "user_id INTEGER NOT NULL,"
         "service_id INTEGER NOT NULL,"
+        "service_user_id TEXT,"
+        "activated INTEGER DEFAULT 0,"
+        "activate_time TEXT,"
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
         "UNIQUE(user_id, service_id),"
         "FOREIGN KEY(user_id) REFERENCES Users(id),"
         "FOREIGN KEY(service_id) REFERENCES Services(id)"
         ");";
 
-    // 插入初始服务数据
+    // 插入初始服务数据 - 添加description字段
     const char* sqlInsertServices = 
-        "INSERT OR IGNORE INTO Services (id, name) VALUES "
-        "(1, 'QQ'), (2, '微信');";
+        "INSERT OR IGNORE INTO Services (id, name, description) VALUES "
+        "(1, 'QQ', '经典即时通讯服务'), (2, '微信', '现代社交生活方式');";
 
     char* errMsg = nullptr;
     
@@ -267,13 +271,32 @@ bool DatabaseManager::createServiceTables() {
         return false;
     }
     
-    // 执行插入初始服务数据
-    rc = sqlite3_exec(db_, sqlInsertServices, nullptr, nullptr, &errMsg);
+    // 检查Services表是否为空，如果为空则插入初始数据
+    sqlite3_stmt* stmt = nullptr;
+    rc = sqlite3_prepare_v2(db_, "SELECT COUNT(*) FROM Services", -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::string errorMsg = "SQL error inserting initial services: " + std::string(errMsg);
+        std::string errorMsg = "SQL error checking Services table: " + std::string(sqlite3_errmsg(db_));
         Logger::getInstance().logError(errorMsg);
-        sqlite3_free(errMsg);
         return false;
+    }
+    
+    rc = sqlite3_step(stmt);
+    int count = 0;
+    if (rc == SQLITE_ROW) {
+        count = sqlite3_column_int(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+    
+    // 如果表为空，插入初始服务数据
+    if (count == 0) {
+        rc = sqlite3_exec(db_, sqlInsertServices, nullptr, nullptr, &errMsg);
+        if (rc != SQLITE_OK) {
+            std::string errorMsg = "SQL error inserting initial services: " + std::string(errMsg);
+            Logger::getInstance().logError(errorMsg);
+            sqlite3_free(errMsg);
+            return false;
+        }
+        Logger::getInstance().logInfo("Initial services data inserted successfully");
     }
     
     Logger::getInstance().logInfo("Service tables created successfully");

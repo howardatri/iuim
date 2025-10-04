@@ -19,8 +19,10 @@ void handleActivate(const httplib::Request& req, httplib::Response& res) {
         
         // 验证必要字段
         if (!requestJson.contains("user_id") || !requestJson.contains("service_id")) {
-            responseJson["success"] = false;
-            responseJson["message"] = "Missing required fields: user_id or service_id";
+            responseJson = {
+                {"code", 400},
+                {"message", "Missing required fields: user_id or service_id"}
+            };
             res.set_content(responseJson.dump(), "application/json");
             return;
         }
@@ -32,16 +34,22 @@ void handleActivate(const httplib::Request& req, httplib::Response& res) {
         bool success = DatabaseManager::getInstance().activateUserService(userId, serviceId);
         
         if (success) {
-            responseJson["success"] = true;
-            responseJson["message"] = "Service activated successfully";
+            responseJson = {
+                {"code", 0},
+                {"message", "success"}
+            };
         } else {
-            responseJson["success"] = false;
-            responseJson["message"] = "Failed to activate service";
+            responseJson = {
+                {"code", 500},
+                {"message", "Failed to activate service"}
+            };
         }
     } catch (const std::exception& e) {
         Logger::getInstance().logError("Error in handleActivate: " + std::string(e.what()));
-        responseJson["success"] = false;
-        responseJson["message"] = "Internal server error: " + std::string(e.what());
+        responseJson = {
+            {"code", 500},
+            {"message", "Internal server error: " + std::string(e.what())}
+        };
     }
     
     res.set_content(responseJson.dump(), "application/json");
@@ -59,8 +67,10 @@ void handleDeactivate(const httplib::Request& req, httplib::Response& res) {
         
         // 验证必要字段
         if (!requestJson.contains("user_id") || !requestJson.contains("service_id")) {
-            responseJson["success"] = false;
-            responseJson["message"] = "Missing required fields: user_id or service_id";
+            responseJson = {
+                {"code", 400},
+                {"message", "Missing required fields: user_id or service_id"}
+            };
             res.set_content(responseJson.dump(), "application/json");
             return;
         }
@@ -72,16 +82,22 @@ void handleDeactivate(const httplib::Request& req, httplib::Response& res) {
         bool success = DatabaseManager::getInstance().deactivateUserService(userId, serviceId);
         
         if (success) {
-            responseJson["success"] = true;
-            responseJson["message"] = "Service deactivated successfully";
+            responseJson = {
+                {"code", 0},
+                {"message", "success"}
+            };
         } else {
-            responseJson["success"] = false;
-            responseJson["message"] = "Failed to deactivate service";
+            responseJson = {
+                {"code", 500},
+                {"message", "Failed to deactivate service"}
+            };
         }
     } catch (const std::exception& e) {
         Logger::getInstance().logError("Error in handleDeactivate: " + std::string(e.what()));
-        responseJson["success"] = false;
-        responseJson["message"] = "Internal server error: " + std::string(e.what());
+        responseJson = {
+            {"code", 500},
+            {"message", "Internal server error: " + std::string(e.what())}
+        };
     }
     
     res.set_content(responseJson.dump(), "application/json");
@@ -99,8 +115,10 @@ void handleQueryUserServices(const httplib::Request& req, httplib::Response& res
         
         // 验证必要字段
         if (!requestJson.contains("user_id")) {
-            responseJson["success"] = false;
-            responseJson["message"] = "Missing required field: user_id";
+            responseJson = {
+                {"code", 400},
+                {"message", "Missing required field: user_id"}
+            };
             res.set_content(responseJson.dump(), "application/json");
             return;
         }
@@ -112,16 +130,25 @@ void handleQueryUserServices(const httplib::Request& req, httplib::Response& res
         bool success = DatabaseManager::getInstance().queryUserServices(userId, servicesJson);
         
         if (success) {
-            responseJson["success"] = true;
-            responseJson["services"] = json::parse(servicesJson);
+            responseJson = {
+                {"code", 0},
+                {"message", "success"},
+                {"data", {
+                    {"services", json::parse(servicesJson)}
+                }}
+            };
         } else {
-            responseJson["success"] = false;
-            responseJson["message"] = "Failed to query user services";
+            responseJson = {
+                {"code", 500},
+                {"message", "Failed to query user services"}
+            };
         }
     } catch (const std::exception& e) {
         Logger::getInstance().logError("Error in handleQueryUserServices: " + std::string(e.what()));
-        responseJson["success"] = false;
-        responseJson["message"] = "Internal server error: " + std::string(e.what());
+        responseJson = {
+            {"code", 500},
+            {"message", "Internal server error: " + std::string(e.what())}
+        };
     }
     
     res.set_content(responseJson.dump(), "application/json");
