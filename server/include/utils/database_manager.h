@@ -39,6 +39,11 @@ public:
     
     // 根据用户名获取用户ID
     int getUserIdByUsername(const std::string& username);
+    
+    // 好友管理相关方法
+    bool addFriend(int userId, int friendId, int serviceId, const std::string& remark);
+    bool deleteFriend(int userId, int friendId, int serviceId);
+    bool queryFriends(int userId, int serviceId, std::string& jsonResult);
 
 private:
     // 私有构造函数和析构函数
@@ -53,6 +58,9 @@ private:
     
     // 创建服务表和用户服务关系表 (私有的)
     bool createServiceTables();
+    
+    // 创建社交相关表 (私有的)
+    bool createSocialTables();
     
     // 计算SHA256哈希
     std::string hashPassword(const std::string& password);

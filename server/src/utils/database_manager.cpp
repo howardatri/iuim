@@ -50,6 +50,12 @@ DatabaseManager::DatabaseManager(const std::string& dbPath)
         Logger::getInstance().logError(errorMsg);
         throw std::runtime_error(errorMsg);
     }
+    // 创建社交相关表
+    if (!createSocialTables()) {
+        std::string errorMsg = "Failed to create social tables";
+        Logger::getInstance().logError(errorMsg);
+        throw std::runtime_error(errorMsg);
+    }
 }
 
 DatabaseManager::~DatabaseManager() {
@@ -303,6 +309,39 @@ bool DatabaseManager::createServiceTables() {
     return true;
 }
 
+bool DatabaseManager::createSocialTables() {
+    if (!db_) return false;
+
+    // 创建好友表 - 按照设计文档4.2.4节
+    const char* sqlFriends = 
+        "CREATE TABLE IF NOT EXISTS Friends ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "user_id INTEGER NOT NULL,"
+        "friend_id INTEGER NOT NULL,"
+        "service_id INTEGER NOT NULL,"
+        "remark TEXT,"
+        "add_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "UNIQUE(user_id, friend_id, service_id),"
+        "FOREIGN KEY(user_id) REFERENCES Users(id),"
+        "FOREIGN KEY(friend_id) REFERENCES Users(id),"
+        "FOREIGN KEY(service_id) REFERENCES Services(id)"
+        ");";
+
+    char* errMsg = nullptr;
+    
+    // 执行创建Friends表
+    int rc = sqlite3_exec(db_, sqlFriends, nullptr, nullptr, &errMsg);
+    if (rc != SQLITE_OK) {
+        std::string errorMsg = "SQL error creating Friends table: " + std::string(errMsg);
+        Logger::getInstance().logError(errorMsg);
+        sqlite3_free(errMsg);
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Social tables created successfully");
+    return true;
+}
+
 bool DatabaseManager::activateUserService(int userId, int serviceId) {
     if (!db_) return false;
     
@@ -425,6 +464,179 @@ int DatabaseManager::getUserIdByUsername(const std::string& username) {
     
     sqlite3_finalize(stmt);
     return userId;
+}
+
+bool DatabaseManager::addFriend(int userId, int friendId, int serviceId, const std::string& remark) {
+    if (!db_) return false;
+
+    // 检查用户是否存在
+    const char* checkUserSql = "SELECT 1 FROM Users WHERE id = ?";
+    sqlite3_stmt* checkStmt = nullptr;
+    
+    if (sqlite3_prepare_v2(db_, checkUserSql, -1, &checkStmt, nullptr) != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare user check statement");
+        return false;
+    }
+    
+    sqlite3_bind_int(checkStmt, 1, userId);
+    bool userExists = (sqlite3_step(checkStmt) == SQLITE_ROW);
+    sqlite3_finalize(checkStmt);
+    
+    if (!userExists) {
+        Logger::getInstance().logError("User does not exist: " + std::to_string(userId));
+        return false;
+    }
+    
+    // 检查好友用户是否存在
+    if (sqlite3_prepare_v2(db_, checkUserSql, -1, &checkStmt, nullptr) != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare friend check statement");
+        return false;
+    }
+    
+    sqlite3_bind_int(checkStmt, 1, friendId);
+    bool friendExists = (sqlite3_step(checkStmt) == SQLITE_ROW);
+    sqlite3_finalize(checkStmt);
+    
+    if (!friendExists) {
+        Logger::getInstance().logError("Friend user does not exist: " + std::to_string(friendId));
+        return false;
+    }
+    
+    // 检查是否已经是好友
+    const char* checkFriendSql = "SELECT 1 FROM Friends WHERE user_id = ? AND friend_id = ? AND service_id = ?";
+    if (sqlite3_prepare_v2(db_, checkFriendSql, -1, &checkStmt, nullptr) != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare friend relationship check statement");
+        return false;
+    }
+    
+    sqlite3_bind_int(checkStmt, 1, userId);
+    sqlite3_bind_int(checkStmt, 2, friendId);
+    sqlite3_bind_int(checkStmt, 3, serviceId);
+    bool alreadyFriends = (sqlite3_step(checkStmt) == SQLITE_ROW);
+    sqlite3_finalize(checkStmt);
+    
+    if (alreadyFriends) {
+        Logger::getInstance().logInfo("Users are already friends");
+        return true; // 已经是好友，返回成功
+    }
+    
+    // 插入好友关系
+    const char* insertSql = 
+        "INSERT INTO Friends (user_id, friend_id, service_id, remark) VALUES (?, ?, ?, ?);";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, insertSql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare add friend statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    sqlite3_bind_int(stmt, 2, friendId);
+    sqlite3_bind_int(stmt, 3, serviceId);
+    sqlite3_bind_text(stmt, 4, remark.c_str(), -1, SQLITE_STATIC);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to add friend: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Friend added successfully: user=" + std::to_string(userId) + 
+                                 ", friend=" + std::to_string(friendId) + 
+                                 ", service=" + std::to_string(serviceId));
+    return true;
+}
+
+bool DatabaseManager::deleteFriend(int userId, int friendId, int serviceId) {
+    if (!db_) return false;
+
+    const char* sql = 
+        "DELETE FROM Friends WHERE user_id = ? AND friend_id = ? AND service_id = ?;";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare delete friend statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    sqlite3_bind_int(stmt, 2, friendId);
+    sqlite3_bind_int(stmt, 3, serviceId);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to delete friend: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Friend deleted successfully: user=" + std::to_string(userId) + 
+                                 ", friend=" + std::to_string(friendId) + 
+                                 ", service=" + std::to_string(serviceId));
+    return true;
+}
+
+bool DatabaseManager::queryFriends(int userId, int serviceId, std::string& jsonResult) {
+    if (!db_) return false;
+    
+    const char* sql = 
+        "SELECT u.id, u.nickname, u.username, f.remark, f.add_time "
+        "FROM Friends f "
+        "JOIN Users u ON f.friend_id = u.id "
+        "WHERE f.user_id = ? AND f.service_id = ? "
+        "ORDER BY f.add_time DESC;";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare query friends statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    sqlite3_bind_int(stmt, 2, serviceId);
+    
+    jsonResult = "[";
+    bool first = true;
+    
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int friendId = sqlite3_column_int(stmt, 0);
+        const char* nickname = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char* remark = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        const char* addTime = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        
+        if (!first) {
+            jsonResult += ",";
+        }
+        
+        jsonResult += "{";
+        jsonResult += "\"friend_id\":" + std::to_string(friendId) + ",";
+        jsonResult += "\"nickname\":\"" + (nickname ? std::string(nickname) : "") + "\",";
+        jsonResult += "\"username\":\"" + (username ? std::string(username) : "") + "\",";
+        jsonResult += "\"remark\":\"" + (remark ? std::string(remark) : "") + "\",";
+        jsonResult += "\"add_time\":\"" + (addTime ? std::string(addTime) : "") + "\"";
+        jsonResult += "}";
+        
+        first = false;
+    }
+    
+    jsonResult += "]";
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to query friends: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Friends queried successfully: user=" + std::to_string(userId) + 
+                                 ", service=" + std::to_string(serviceId));
+    return true;
 }
 
 } // namespace utils

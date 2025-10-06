@@ -2,6 +2,7 @@ const net = require('net');
 const http = require('http');
 const axios = require('axios');
 
+// UserSVC配置
 const PORT = 8233;
 const USER_SVC_HOST = 'localhost';
 const USER_SVC_PORT = 50051;
@@ -11,6 +12,11 @@ const USER_SVC_BASE_URL = `http://${USER_SVC_HOST}:${USER_SVC_PORT}`;
 const SERVICE_SVC_HOST = 'localhost';
 const SERVICE_SVC_PORT = 50056;
 const SERVICE_SVC_BASE_URL = `http://${SERVICE_SVC_HOST}:${SERVICE_SVC_PORT}`;
+
+// FriendSVC配置
+const FRIEND_SVC_HOST = 'localhost';
+const FRIEND_SVC_PORT = 50054;
+const FRIEND_SVC_BASE_URL = `http://${FRIEND_SVC_HOST}:${FRIEND_SVC_PORT}`;
 
 // 创建TCP服务器
 const server = net.createServer((socket) => {
@@ -260,6 +266,120 @@ const server = net.createServer((socket) => {
       } catch (error) {
         console.error(`Error parsing query_user_services command:`, error.message);
         socket.write(`query_user_services_resp ${JSON.stringify({
+          code: 400,
+          message: 'Invalid JSON format',
+          error: error.message
+        })}\n`);
+      }
+    } else if (cmd === 'add_friend') {
+      // 处理添加好友命令
+      try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const friendData = JSON.parse(jsonStr);
+        
+        console.log(`Processing add_friend command with data:`, friendData);
+        
+        // 转发到FriendSVC的add接口
+        axios.post(`${FRIEND_SVC_BASE_URL}/add`, friendData, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+          console.log(`Add friend response from FriendSVC:`, response.data);
+          socket.write(`add_friend_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+          console.error(`Error in add_friend request:`, error.message);
+          let errorResponse = {
+            code: 500,
+            message: 'Error connecting to FriendSVC',
+            error: error.message
+          };
+          
+          if (error.response && error.response.data) {
+            errorResponse = error.response.data;
+          }
+          
+          socket.write(`add_friend_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+      } catch (error) {
+        console.error(`Error parsing add_friend command:`, error.message);
+        socket.write(`add_friend_resp ${JSON.stringify({
+          code: 400,
+          message: 'Invalid JSON format',
+          error: error.message
+        })}\n`);
+      }
+    } else if (cmd === 'delete_friend') {
+      // 处理删除好友命令
+      try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const friendData = JSON.parse(jsonStr);
+        
+        console.log(`Processing delete_friend command with data:`, friendData);
+        
+        // 转发到FriendSVC的delete接口
+        axios.post(`${FRIEND_SVC_BASE_URL}/delete`, friendData, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+          console.log(`Delete friend response from FriendSVC:`, response.data);
+          socket.write(`delete_friend_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+          console.error(`Error in delete_friend request:`, error.message);
+          let errorResponse = {
+            code: 500,
+            message: 'Error connecting to FriendSVC',
+            error: error.message
+          };
+          
+          if (error.response && error.response.data) {
+            errorResponse = error.response.data;
+          }
+          
+          socket.write(`delete_friend_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+      } catch (error) {
+        console.error(`Error parsing delete_friend command:`, error.message);
+        socket.write(`delete_friend_resp ${JSON.stringify({
+          code: 400,
+          message: 'Invalid JSON format',
+          error: error.message
+        })}\n`);
+      }
+    } else if (cmd === 'query_friend') {
+      // 处理查询好友命令
+      try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const friendData = JSON.parse(jsonStr);
+        
+        console.log(`Processing query_friend command with data:`, friendData);
+        
+        // 转发到FriendSVC的query接口
+        axios.post(`${FRIEND_SVC_BASE_URL}/query`, friendData, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+          console.log(`Query friend response from FriendSVC:`, response.data);
+          socket.write(`query_friend_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+          console.error(`Error in query_friend request:`, error.message);
+          let errorResponse = {
+            code: 500,
+            message: 'Error connecting to FriendSVC',
+            error: error.message
+          };
+          
+          if (error.response && error.response.data) {
+            errorResponse = error.response.data;
+          }
+          
+          socket.write(`query_friend_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+      } catch (error) {
+        console.error(`Error parsing query_friend command:`, error.message);
+        socket.write(`query_friend_resp ${JSON.stringify({
           code: 400,
           message: 'Invalid JSON format',
           error: error.message
