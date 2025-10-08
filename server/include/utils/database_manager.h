@@ -44,6 +44,10 @@ public:
     bool addFriend(int userId, int friendId, int serviceId, const std::string& remark);
     bool deleteFriend(int userId, int friendId, int serviceId);
     bool queryFriends(int userId, int serviceId, std::string& jsonResult);
+    
+    // 消息管理相关方法
+    bool sendMessage(int senderId, int receiverId, int type, const std::string& content, int serviceId);
+    bool getMessageHistory(int userId, int targetId, int type, int serviceId, int page, int pageSize, std::string& jsonResult);
 
 private:
     // 私有构造函数和析构函数
@@ -61,6 +65,9 @@ private:
     
     // 创建社交相关表 (私有的)
     bool createSocialTables();
+    
+    // 创建消息相关表 (私有的)
+    bool createMessageTables();
     
     // 计算SHA256哈希
     std::string hashPassword(const std::string& password);
