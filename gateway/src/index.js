@@ -18,6 +18,11 @@ const FRIEND_SVC_HOST = 'localhost';
 const FRIEND_SVC_PORT = 50054;
 const FRIEND_SVC_BASE_URL = `http://${FRIEND_SVC_HOST}:${FRIEND_SVC_PORT}`;
 
+// MsgSVC配置
+const MSG_SVC_HOST = 'localhost';
+const MSG_SVC_PORT = 50052;
+const MSG_SVC_BASE_URL = `http://${MSG_SVC_HOST}:${MSG_SVC_PORT}`;
+
 // 创建TCP服务器
 const server = net.createServer((socket) => {
   console.log('Client connected');
@@ -380,6 +385,82 @@ const server = net.createServer((socket) => {
       } catch (error) {
         console.error(`Error parsing query_friend command:`, error.message);
         socket.write(`query_friend_resp ${JSON.stringify({
+          code: 400,
+          message: 'Invalid JSON format',
+          error: error.message
+        })}\n`);
+      }
+    } else if (cmd === 'send_message') {
+      // 处理发送消息命令
+      try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const messageData = JSON.parse(jsonStr);
+        
+        console.log(`Processing send_message command with data:`, messageData);
+        
+        // 转发到MsgSVC的send接口
+        axios.post(`${MSG_SVC_BASE_URL}/send`, messageData, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+          console.log(`Send message response from MsgSVC:`, response.data);
+          socket.write(`send_message_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+          console.error(`Error in send_message request:`, error.message);
+          let errorResponse = {
+            code: 500,
+            message: 'Error connecting to MsgSVC',
+            error: error.message
+          };
+          
+          if (error.response && error.response.data) {
+            errorResponse = error.response.data;
+          }
+          
+          socket.write(`send_message_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+      } catch (error) {
+        console.error(`Error parsing send_message command:`, error.message);
+        socket.write(`send_message_resp ${JSON.stringify({
+          code: 400,
+          message: 'Invalid JSON format',
+          error: error.message
+        })}\n`);
+      }
+    } else if (cmd === 'get_history') {
+      // 处理获取历史消息命令
+      try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const historyData = JSON.parse(jsonStr);
+        
+        console.log(`Processing get_history command with data:`, historyData);
+        
+        // 转发到MsgSVC的history接口
+        axios.post(`${MSG_SVC_BASE_URL}/history`, historyData, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+          console.log(`Get history response from MsgSVC:`, response.data);
+          socket.write(`get_history_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+          console.error(`Error in get_history request:`, error.message);
+          let errorResponse = {
+            code: 500,
+            message: 'Error connecting to MsgSVC',
+            error: error.message
+          };
+          
+          if (error.response && error.response.data) {
+            errorResponse = error.response.data;
+          }
+          
+          socket.write(`get_history_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+      } catch (error) {
+        console.error(`Error parsing get_history command:`, error.message);
+        socket.write(`get_history_resp ${JSON.stringify({
           code: 400,
           message: 'Invalid JSON format',
           error: error.message

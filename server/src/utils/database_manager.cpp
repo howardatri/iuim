@@ -56,6 +56,13 @@ DatabaseManager::DatabaseManager(const std::string& dbPath)
         Logger::getInstance().logError(errorMsg);
         throw std::runtime_error(errorMsg);
     }
+    
+    // 创建消息相关表
+    if (!createMessageTables()) {
+        std::string errorMsg = "Failed to create message tables";
+        Logger::getInstance().logError(errorMsg);
+        throw std::runtime_error(errorMsg);
+    }
 }
 
 DatabaseManager::~DatabaseManager() {
@@ -636,6 +643,217 @@ bool DatabaseManager::queryFriends(int userId, int serviceId, std::string& jsonR
     
     Logger::getInstance().logInfo("Friends queried successfully: user=" + std::to_string(userId) + 
                                  ", service=" + std::to_string(serviceId));
+    return true;
+}
+
+// 创建消息相关表
+bool DatabaseManager::createMessageTables() {
+    if (!db_) return false;
+
+    // 创建消息表 - 按照设计文档4.2.7节
+    const char* sql = 
+        "CREATE TABLE IF NOT EXISTS Messages ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "sender_id INTEGER NOT NULL,"
+        "receiver_id INTEGER NOT NULL,"
+        "type INTEGER NOT NULL,"
+        "content TEXT NOT NULL,"
+        "send_time TEXT DEFAULT CURRENT_TIMESTAMP,"
+        "service_id INTEGER NOT NULL,"
+        "status INTEGER DEFAULT 0,"
+        "FOREIGN KEY (sender_id) REFERENCES Users(id),"
+        "FOREIGN KEY (receiver_id) REFERENCES Users(id),"
+        "FOREIGN KEY (service_id) REFERENCES Services(id)"
+        ");";
+
+    char* errMsg = nullptr;
+    int rc = sqlite3_exec(db_, sql, nullptr, nullptr, &errMsg);
+    
+    if (rc != SQLITE_OK) {
+        std::string errorMsg = "SQL error: " + std::string(errMsg);
+        Logger::getInstance().logError(errorMsg);
+        sqlite3_free(errMsg);
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Messages table created successfully");
+    return true;
+}
+
+// 发送消息
+bool DatabaseManager::sendMessage(int senderId, int receiverId, int type, const std::string& content, int serviceId) {
+    if (!db_) return false;
+    
+    // 验证发送者和接收者是否存在
+    std::string checkUserSql = "SELECT id FROM Users WHERE id = ?;";
+    sqlite3_stmt* checkStmt = nullptr;
+    
+    // 检查发送者是否存在
+    int rc = sqlite3_prepare_v2(db_, checkUserSql.c_str(), -1, &checkStmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(checkStmt, 1, senderId);
+    rc = sqlite3_step(checkStmt);
+    if (rc != SQLITE_ROW) {
+        Logger::getInstance().logError("Sender not found: " + std::to_string(senderId));
+        sqlite3_finalize(checkStmt);
+        return false;
+    }
+    sqlite3_reset(checkStmt);
+    
+    // 检查接收者是否存在
+    sqlite3_bind_int(checkStmt, 1, receiverId);
+    rc = sqlite3_step(checkStmt);
+    if (rc != SQLITE_ROW) {
+        Logger::getInstance().logError("Receiver not found: " + std::to_string(receiverId));
+        sqlite3_finalize(checkStmt);
+        return false;
+    }
+    sqlite3_finalize(checkStmt);
+    
+    // 插入消息记录
+    std::string sql = "INSERT INTO Messages (sender_id, receiver_id, type, content, service_id) VALUES (?, ?, ?, ?, ?);";
+    sqlite3_stmt* stmt = nullptr;
+    
+    rc = sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, senderId);
+    sqlite3_bind_int(stmt, 2, receiverId);
+    sqlite3_bind_int(stmt, 3, type);
+    sqlite3_bind_text(stmt, 4, content.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 5, serviceId);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to send message: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Message sent successfully from user " + std::to_string(senderId) + 
+                                 " to " + std::to_string(receiverId) + 
+                                 " for service " + std::to_string(serviceId));
+    return true;
+}
+
+// 获取消息历史
+bool DatabaseManager::getMessageHistory(int userId, int targetId, int type, int serviceId, int page, int pageSize, std::string& jsonResult) {
+    if (!db_) return false;
+    
+    // 计算偏移量
+    int offset = (page - 1) * pageSize;
+    
+    // 构建查询SQL - 查询用户与目标用户之间的对话历史
+    std::string sql = 
+        "SELECT m.id, m.sender_id, m.receiver_id, m.type, m.content, m.send_time, m.status, "
+        "s.nickname as sender_nickname, r.nickname as receiver_nickname "
+        "FROM Messages m "
+        "JOIN Users s ON m.sender_id = s.id "
+        "JOIN Users r ON m.receiver_id = r.id "
+        "WHERE m.service_id = ? AND m.type = ? AND "
+        "((m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?)) "
+        "ORDER BY m.send_time DESC "
+        "LIMIT ? OFFSET ?;";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr);
+    
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, serviceId);
+    sqlite3_bind_int(stmt, 2, type);
+    sqlite3_bind_int(stmt, 3, userId);
+    sqlite3_bind_int(stmt, 4, targetId);
+    sqlite3_bind_int(stmt, 5, targetId);
+    sqlite3_bind_int(stmt, 6, userId);
+    sqlite3_bind_int(stmt, 7, pageSize);
+    sqlite3_bind_int(stmt, 8, offset);
+    
+    // 构建JSON结果
+    jsonResult = "{\"messages\":[";
+    bool first = true;
+    
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        if (!first) {
+            jsonResult += ",";
+        }
+        
+        jsonResult += "{";
+        jsonResult += "\"id\":" + std::to_string(sqlite3_column_int(stmt, 0)) + ",";
+        jsonResult += "\"sender_id\":" + std::to_string(sqlite3_column_int(stmt, 1)) + ",";
+        jsonResult += "\"receiver_id\":" + std::to_string(sqlite3_column_int(stmt, 2)) + ",";
+        jsonResult += "\"type\":" + std::to_string(sqlite3_column_int(stmt, 3)) + ",";
+        
+        const unsigned char* content = sqlite3_column_text(stmt, 4);
+        jsonResult += "\"content\":\"" + (content ? std::string(reinterpret_cast<const char*>(content)) : "") + "\",";
+        
+        const unsigned char* sendTime = sqlite3_column_text(stmt, 5);
+        jsonResult += "\"send_time\":\"" + (sendTime ? std::string(reinterpret_cast<const char*>(sendTime)) : "") + "\",";
+        
+        jsonResult += "\"status\":" + std::to_string(sqlite3_column_int(stmt, 6)) + ",";
+        
+        const unsigned char* senderNickname = sqlite3_column_text(stmt, 7);
+        jsonResult += "\"sender_nickname\":\"" + (senderNickname ? std::string(reinterpret_cast<const char*>(senderNickname)) : "") + "\",";
+        
+        const unsigned char* receiverNickname = sqlite3_column_text(stmt, 8);
+        jsonResult += "\"receiver_nickname\":\"" + (receiverNickname ? std::string(reinterpret_cast<const char*>(receiverNickname)) : "") + "\"";
+        
+        jsonResult += "}";
+        first = false;
+    }
+    
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
+        Logger::getInstance().logError("Failed to query message history: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    // 查询总消息数
+    std::string countSql = 
+        "SELECT COUNT(*) FROM Messages "
+        "WHERE service_id = ? AND type = ? AND "
+        "((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?));";
+    
+    sqlite3_stmt* countStmt = nullptr;
+    rc = sqlite3_prepare_v2(db_, countSql.c_str(), -1, &countStmt, nullptr);
+    
+    int totalCount = 0;
+    if (rc == SQLITE_OK) {
+        sqlite3_bind_int(countStmt, 1, serviceId);
+        sqlite3_bind_int(countStmt, 2, type);
+        sqlite3_bind_int(countStmt, 3, userId);
+        sqlite3_bind_int(countStmt, 4, targetId);
+        sqlite3_bind_int(countStmt, 5, targetId);
+        sqlite3_bind_int(countStmt, 6, userId);
+        
+        if (sqlite3_step(countStmt) == SQLITE_ROW) {
+            totalCount = sqlite3_column_int(countStmt, 0);
+        }
+    }
+    sqlite3_finalize(countStmt);
+    
+    // 完成JSON结果
+    jsonResult += "],";
+    jsonResult += "\"total\":" + std::to_string(totalCount) + ",";
+    jsonResult += "\"page\":" + std::to_string(page) + ",";
+    jsonResult += "\"page_size\":" + std::to_string(pageSize);
+    jsonResult += "}";
+    
+    Logger::getInstance().logInfo("Message history queried successfully for user " + std::to_string(userId) + 
+                                 " and target " + std::to_string(targetId) + 
+                                 " for service " + std::to_string(serviceId));
     return true;
 }
 
