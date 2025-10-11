@@ -9,6 +9,23 @@ import (
 	"strings"
 )
 
+// Friend 好友数据结构
+type Friend struct {
+	FriendID int    `json:"friend_id"`
+	Nickname string `json:"nickname"`
+	Username string `json:"username"`
+	Remark   string `json:"remark"`
+	AddTime  string `json:"add_time"`
+}
+
+// User 用户数据结构
+type User struct {
+	UserID   int    `json:"user_id"`
+	Username string `json:"username"`
+	Nickname string `json:"nickname"`
+	Email    string `json:"email"`
+}
+
 const (
 	GatewayHost = "localhost"
 	GatewayPort = "8233"
@@ -57,6 +74,152 @@ func (m *NetworkManager) Register(userInfo map[string]string) (map[string]interf
 	return result, nil
 }
 
+// QueryFriends 查询好友列表
+func (m *NetworkManager) QueryFriends(userID, serviceID int) (map[string]interface{}, error) {
+	// 构建查询命令
+	queryData := map[string]interface{}{
+		"user_id":    userID,
+		"service_id": serviceID,
+	}
+
+	jsonData, err := json.Marshal(queryData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化查询数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("query_friend %s", string(jsonData))
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: query_friend_resp {JSON数据}
+	if !strings.HasPrefix(resp, "query_friend_resp ") {
+		return nil, fmt.Errorf("无效的响应格式")
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "query_friend_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// AddFriend 添加好友
+func (m *NetworkManager) AddFriend(userID, friendID, serviceID int, remark string) (map[string]interface{}, error) {
+	// 构建添加命令
+	addData := map[string]interface{}{
+		"user_id":    userID,
+		"friend_id":  friendID,
+		"service_id": serviceID,
+		"remark":     remark,
+	}
+
+	jsonData, err := json.Marshal(addData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化添加数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("add_friend %s", string(jsonData))
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: add_friend_resp {JSON数据}
+	if !strings.HasPrefix(resp, "add_friend_resp ") {
+		return nil, fmt.Errorf("无效的响应格式")
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "add_friend_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// DeleteFriend 删除好友
+func (m *NetworkManager) DeleteFriend(userID, friendID, serviceID int) (map[string]interface{}, error) {
+	// 构建删除命令
+	deleteData := map[string]interface{}{
+		"user_id":    userID,
+		"friend_id":  friendID,
+		"service_id": serviceID,
+	}
+
+	jsonData, err := json.Marshal(deleteData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化删除数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("delete_friend %s", string(jsonData))
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: delete_friend_resp {JSON数据}
+	if !strings.HasPrefix(resp, "delete_friend_resp ") {
+		return nil, fmt.Errorf("无效的响应格式")
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "delete_friend_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// SearchUsers 搜索用户
+func (m *NetworkManager) SearchUsers(keyword string) (map[string]interface{}, error) {
+	// 构建搜索命令
+	searchData := map[string]interface{}{
+		"keyword": keyword,
+	}
+
+	jsonData, err := json.Marshal(searchData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化搜索数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("search_users %s", string(jsonData))
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: search_users_resp {JSON数据}
+	if !strings.HasPrefix(resp, "search_users_resp ") {
+		return nil, fmt.Errorf("无效的响应格式")
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "search_users_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
 // Login 发送登录请求到网关
 func (m *NetworkManager) Login(username, password string) (map[string]interface{}, error) {
 	// 构建登录命令
@@ -86,7 +249,7 @@ func (m *NetworkManager) Login(username, password string) (map[string]interface{
 
 	jsonStr := strings.TrimPrefix(resp, "login_resp ")
 	log.Printf("即将解析的登录响应JSON字符串: %s", jsonStr) // 新增日志
-	
+
 	var result map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		log.Printf("JSON解析错误: %v", err) // 新增日志
@@ -149,7 +312,7 @@ func (m *NetworkManager) QueryUserServices(userId int) (map[string]interface{}, 
 func (m *NetworkManager) ActivateService(userId int, serviceId int) (map[string]interface{}, error) {
 	// 构建激活命令
 	activateData := map[string]interface{}{
-		"user_id": userId,
+		"user_id":    userId,
 		"service_id": serviceId,
 	}
 
@@ -185,7 +348,7 @@ func (m *NetworkManager) ActivateService(userId int, serviceId int) (map[string]
 func (m *NetworkManager) DeactivateService(userId int, serviceId int) (map[string]interface{}, error) {
 	// 构建停用命令
 	deactivateData := map[string]interface{}{
-		"user_id": userId,
+		"user_id":    userId,
 		"service_id": serviceId,
 	}
 

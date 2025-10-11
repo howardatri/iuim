@@ -44,6 +44,7 @@ public:
     bool addFriend(int userId, int friendId, int serviceId, const std::string& remark);
     bool deleteFriend(int userId, int friendId, int serviceId);
     bool queryFriends(int userId, int serviceId, std::string& jsonResult);
+    bool searchUsers(const std::string& keyword, std::string& jsonResult);
     
     // 消息管理相关方法
     bool sendMessage(int senderId, int receiverId, int type, const std::string& content, int serviceId);

@@ -121,7 +121,7 @@ void handleFriendQuery(const httplib::Request& req, httplib::Response& res) {
             json friendsData = json::parse(jsonResult);
             
             // 构建响应
-            responseJson["code"] = 200;
+            responseJson["code"] = 0;
             responseJson["message"] = "Friends queried successfully";
             responseJson["data"] = friendsData;
         } else {
@@ -135,6 +135,52 @@ void handleFriendQuery(const httplib::Request& req, httplib::Response& res) {
     }
     
     res.set_content(responseJson.dump(), "application/json");
+}
+
+// 处理用户搜索请求
+void handleUserSearch(const httplib::Request& req, httplib::Response& res) {
+    try {
+        auto json_body = nlohmann::json::parse(req.body);
+        std::string keyword = json_body.value("keyword", "");
+        
+        if (keyword.empty()) {
+            nlohmann::json response = {
+                {"code", 400},
+                {"message", "Keyword is required"}
+            };
+            res.set_content(response.dump(), "application/json");
+            return;
+        }
+        
+        // 调用数据库搜索用户
+        std::string searchResult;
+        if (iuim::utils::DatabaseManager::getInstance().searchUsers(keyword, searchResult)) {
+            nlohmann::json response = {
+                {"code", 0},
+                {"message", "success"},
+                {"data", {
+                    {"users", nlohmann::json::parse(searchResult)}
+                }}
+            };
+            res.set_content(response.dump(), "application/json");
+        } else {
+            nlohmann::json response = {
+                {"code", 500},
+                {"message", "Search failed"}
+            };
+            res.set_content(response.dump(), "application/json");
+        }
+        
+    } catch (const std::exception& e) {
+        iuim::utils::Logger::getInstance().logError("User search error: " + std::string(e.what()));
+        
+        nlohmann::json response = {
+            {"code", 400},
+            {"message", "Invalid request format"},
+            {"error", e.what()}
+        };
+        res.set_content(response.dump(), "application/json");
+    }
 }
 
 } // namespace services

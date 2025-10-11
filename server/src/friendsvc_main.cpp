@@ -23,6 +23,9 @@ int main() {
         server.Post("/add", handleFriendAdd);
         server.Post("/delete", handleFriendDelete);
         server.Post("/query", handleFriendQuery);
+
+        // 新增：用户搜索功能
+        server.Post("/search", handleUserSearch);
         
         // 启动服务器
         Logger::getInstance().logInfo("FriendSVC listening on port 50054");

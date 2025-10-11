@@ -466,6 +466,44 @@ const server = net.createServer((socket) => {
           error: error.message
         })}\n`);
       }
+    }else if (cmd === 'search_users') {
+    // 处理搜索用户命令
+    try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const searchData = JSON.parse(jsonStr);
+        
+        console.log(`Processing search_users command with data:`, searchData);
+        
+        // 转发到FriendSVC的search接口（端口50054）
+        axios.post(`${FRIEND_SVC_BASE_URL}/search`, searchData, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+            console.log(`Search users response from FriendSVC:`, response.data);
+            socket.write(`search_users_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+            console.error(`Error in search_users request:`, error.message);
+            let errorResponse = {
+                code: 500,
+                message: 'Error connecting to FriendSVC',
+                error: error.message
+            };
+            
+            if (error.response && error.response.data) {
+                errorResponse = error.response.data;
+            }
+            
+            socket.write(`search_users_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+    } catch (error) {
+        console.error(`Error parsing search_users command:`, error.message);
+        socket.write(`search_users_resp ${JSON.stringify({
+            code: 400,
+            message: 'Invalid JSON format',
+            error: error.message
+        })}\n`);
+    }
     } else {
       // 未知命令
       socket.write(JSON.stringify({
