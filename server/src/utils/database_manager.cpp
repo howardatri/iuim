@@ -262,7 +262,7 @@ bool DatabaseManager::createServiceTables() {
     // 插入初始服务数据 - 添加description字段
     const char* sqlInsertServices = 
         "INSERT OR IGNORE INTO Services (id, name, description) VALUES "
-        "(1, 'QQ', '经典即时通讯服务'), (2, '微信', '现代社交生活方式');";
+        "(1, 'QQ', '经典即时通讯服务'), (2, '微信', '现代社交生活方式'),(3, '微博', '分享生活点滴');";
 
     char* errMsg = nullptr;
     
@@ -644,6 +644,56 @@ bool DatabaseManager::queryFriends(int userId, int serviceId, std::string& jsonR
     Logger::getInstance().logInfo("Friends queried successfully: user=" + std::to_string(userId) + 
                                  ", service=" + std::to_string(serviceId));
     return true;
+}
+
+bool DatabaseManager::searchUsers(const std::string& keyword, std::string& jsonResult) {
+    if (!db_) return false;
+    
+    const char* sql = 
+        "SELECT id, username, nickname, email FROM Users "
+        "WHERE username LIKE ? OR nickname LIKE ? OR email LIKE ? "
+        "LIMIT 50;";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare search users statement");
+        return false;
+    }
+    
+    std::string searchPattern = "%" + keyword + "%";
+    sqlite3_bind_text(stmt, 1, searchPattern.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, searchPattern.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, searchPattern.c_str(), -1, SQLITE_STATIC);
+    
+    jsonResult = "[";
+    bool first = true;
+    
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        if (!first) {
+            jsonResult += ",";
+        }
+        
+        jsonResult += "{";
+        jsonResult += "\"user_id\":" + std::to_string(sqlite3_column_int(stmt, 0)) + ",";
+        
+        const unsigned char* username = sqlite3_column_text(stmt, 1);
+        jsonResult += "\"username\":\"" + (username ? std::string(reinterpret_cast<const char*>(username)) : "") + "\",";
+        
+        const unsigned char* nickname = sqlite3_column_text(stmt, 2);
+        jsonResult += "\"nickname\":\"" + (nickname ? std::string(reinterpret_cast<const char*>(nickname)) : "") + "\",";
+        
+        const unsigned char* email = sqlite3_column_text(stmt, 3);
+        jsonResult += "\"email\":\"" + (email ? std::string(reinterpret_cast<const char*>(email)) : "") + "\"";
+        
+        jsonResult += "}";
+        first = false;
+    }
+    
+    jsonResult += "]";
+    sqlite3_finalize(stmt);
+    
+    return rc == SQLITE_DONE;
 }
 
 // 创建消息相关表

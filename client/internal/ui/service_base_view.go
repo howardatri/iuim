@@ -5,6 +5,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+
 	//"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
@@ -74,22 +75,14 @@ func (v *ServiceBaseView) SetContent(content fyne.CanvasObject) {
 // CreateQQServiceView 创建QQ服务界面
 func CreateQQServiceView(window fyne.Window, netManager *network.NetworkManager, userID, serviceID int) fyne.CanvasObject {
 	baseView := NewServiceBaseView(window, netManager, userID, serviceID, "QQ")
-	
-	// 创建QQ特有的界面组件
-	friendsLabel := widget.NewLabel("好友列表")
-	friendsLabel.TextStyle = fyne.TextStyle{Bold: true}
-	
-	friendsList := widget.NewList(
-		func() int { return 5 },
-		func() fyne.CanvasObject { return widget.NewLabel("好友") },
-		func(id widget.ListItemID, obj fyne.CanvasObject) {
-			obj.(*widget.Label).SetText(fmt.Sprintf("好友 %d", id+1))
-		},
-	)
-	
+
+	// 创建好友列表组件
+	friendList := NewFriendList(window, netManager, userID, serviceID)
+
+	// 创建群组列表
 	groupsLabel := widget.NewLabel("群组列表")
 	groupsLabel.TextStyle = fyne.TextStyle{Bold: true}
-	
+
 	groupsList := widget.NewList(
 		func() int { return 3 },
 		func() fyne.CanvasObject { return widget.NewLabel("群组") },
@@ -97,9 +90,11 @@ func CreateQQServiceView(window fyne.Window, netManager *network.NetworkManager,
 			obj.(*widget.Label).SetText(fmt.Sprintf("群组 %d", id+1))
 		},
 	)
-	
+
+	// 创建在线状态
 	statusLabel := widget.NewLabel("在线状态: 在线")
-	
+
+	// 创建消息区域
 	messageArea := container.NewBorder(
 		widget.NewLabel("消息区域"),
 		container.NewBorder(nil, nil, nil, widget.NewButton("发送", func() {}),
@@ -107,23 +102,24 @@ func CreateQQServiceView(window fyne.Window, netManager *network.NetworkManager,
 		nil, nil,
 		widget.NewLabel("这里将显示消息内容"),
 	)
-	
-	// 创建左侧面板
+
+	// 创建左侧面板，集成好友管理
 	leftPanel := container.NewVBox(
-		friendsLabel,
-		container.NewVScroll(friendsList),
+		widget.NewLabel("QQ好友"),
+		friendList.GetContainer(),
+		widget.NewSeparator(),
 		groupsLabel,
 		container.NewVScroll(groupsList),
 		statusLabel,
 	)
-	
+
 	// 创建主内容区域
 	content := container.NewHSplit(
 		leftPanel,
 		messageArea,
 	)
 	content.Offset = 0.3
-	
+
 	baseView.SetContent(content)
 	return baseView.GetContainer()
 }
@@ -131,11 +127,17 @@ func CreateQQServiceView(window fyne.Window, netManager *network.NetworkManager,
 // CreateWeChatServiceView 创建微信服务界面
 func CreateWeChatServiceView(window fyne.Window, netManager *network.NetworkManager, userID, serviceID int) fyne.CanvasObject {
 	baseView := NewServiceBaseView(window, netManager, userID, serviceID, "微信")
-	
+
+	// 创建好友列表组件
+	friendList := NewFriendList(window, netManager, userID, serviceID)
+
 	// 创建微信特有的界面组件
 	tabs := container.NewAppTabs(
 		container.NewTabItem("聊天", widget.NewLabel("聊天会话列表将显示在这里")),
-		container.NewTabItem("通讯录", widget.NewLabel("通讯录将显示在这里")),
+		container.NewTabItem("通讯录", container.NewVBox(
+			widget.NewLabel("微信通讯录"),
+			friendList.GetContainer(),
+		)),
 		container.NewTabItem("发现", container.NewVBox(
 			widget.NewButton("朋友圈", func() {}),
 			widget.NewButton("扫一扫", func() {}),
@@ -143,7 +145,7 @@ func CreateWeChatServiceView(window fyne.Window, netManager *network.NetworkMana
 		)),
 		container.NewTabItem("我", widget.NewLabel("个人信息将显示在这里")),
 	)
-	
+
 	baseView.SetContent(tabs)
 	return baseView.GetContainer()
 }
@@ -151,14 +153,17 @@ func CreateWeChatServiceView(window fyne.Window, netManager *network.NetworkMana
 // CreateWeiboServiceView 创建微博服务界面
 func CreateWeiboServiceView(window fyne.Window, netManager *network.NetworkManager, userID, serviceID int) fyne.CanvasObject {
 	baseView := NewServiceBaseView(window, netManager, userID, serviceID, "微博")
-	
+
+	// 创建好友列表组件
+	friendList := NewFriendList(window, netManager, userID, serviceID)
+
 	// 创建微博特有的界面组件
 	feedLabel := widget.NewLabel("微博动态")
 	feedLabel.TextStyle = fyne.TextStyle{Bold: true}
-	
+
 	feedList := widget.NewList(
 		func() int { return 10 },
-		func() fyne.CanvasObject { 
+		func() fyne.CanvasObject {
 			return container.NewVBox(
 				widget.NewLabel("用户名"),
 				widget.NewLabel("微博内容..."),
@@ -173,22 +178,22 @@ func CreateWeiboServiceView(window fyne.Window, netManager *network.NetworkManag
 			box := obj.(*fyne.Container)
 			username := box.Objects[0].(*widget.Label)
 			content := box.Objects[1].(*widget.Label)
-			
+
 			username.SetText(fmt.Sprintf("用户 %d", id+1))
 			content.SetText(fmt.Sprintf("这是第 %d 条微博内容，展示了用户分享的信息...", id+1))
 		},
 	)
-	
-	// 创建右侧面板
+
+	// 创建右侧面板，集成好友管理
 	rightPanel := container.NewVBox(
 		widget.NewCard("热搜榜", "", widget.NewLabel("热搜内容将显示在这里")),
-		widget.NewCard("关注/粉丝", "", container.NewVBox(
-			widget.NewButton("查看关注", func() {}),
-			widget.NewButton("查看粉丝", func() {}),
+		widget.NewCard("关注管理", "", container.NewVBox(
+			widget.NewLabel("我的关注"),
+			friendList.GetContainer(),
 		)),
 		widget.NewButton("发布微博", func() {}),
 	)
-	
+
 	// 创建主内容区域
 	content := container.NewBorder(
 		feedLabel,
@@ -198,7 +203,7 @@ func CreateWeiboServiceView(window fyne.Window, netManager *network.NetworkManag
 			rightPanel,
 		),
 	)
-	
+
 	baseView.SetContent(content)
 	return baseView.GetContainer()
 }

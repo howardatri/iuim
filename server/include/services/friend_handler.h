@@ -31,6 +31,7 @@ void handleFriendDelete(const httplib::Request& req, httplib::Response& res);
  */
 void handleFriendQuery(const httplib::Request& req, httplib::Response& res);
 
+void handleUserSearch(const httplib::Request& req, httplib::Response& res);
 } // namespace services
 } // namespace iuim
 
