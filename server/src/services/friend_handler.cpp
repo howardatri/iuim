@@ -31,12 +31,18 @@ void handleFriendAdd(const httplib::Request& req, httplib::Response& res) {
         int friendId = requestJson["friend_id"].get<int>();
         int serviceId = requestJson["service_id"].get<int>();
         std::string remark = requestJson.value("remark", "");
-        
+
+        // 添加详细日志
+        Logger::getInstance().logInfo("Adding friend - user_id: " + std::to_string(userId) + 
+                                     ", friend_id: " + std::to_string(friendId) + 
+                                     ", service_id: " + std::to_string(serviceId) + 
+                                     ", remark: " + remark);  
+
         // 调用数据库管理器添加好友
         bool success = DatabaseManager::getInstance().addFriend(userId, friendId, serviceId, remark);
         
         if (success) {
-            responseJson["code"] = 200;
+            responseJson["code"] = 0;
             responseJson["message"] = "Friend added successfully";
         } else {
             responseJson["code"] = 500;
@@ -77,7 +83,7 @@ void handleFriendDelete(const httplib::Request& req, httplib::Response& res) {
         bool success = DatabaseManager::getInstance().deleteFriend(userId, friendId, serviceId);
         
         if (success) {
-            responseJson["code"] = 200;
+            responseJson["code"] = 0;
             responseJson["message"] = "Friend deleted successfully";
         } else {
             responseJson["code"] = 500;
@@ -112,6 +118,10 @@ void handleFriendQuery(const httplib::Request& req, httplib::Response& res) {
         int userId = requestJson["user_id"].get<int>();
         int serviceId = requestJson["service_id"].get<int>();
         
+        // 添加详细日志
+        Logger::getInstance().logInfo("Querying friends - user_id: " + std::to_string(userId) + 
+                                     ", service_id: " + std::to_string(serviceId));
+
         // 查询好友列表
         std::string jsonResult;
         bool success = DatabaseManager::getInstance().queryFriends(userId, serviceId, jsonResult);

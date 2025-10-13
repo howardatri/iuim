@@ -597,6 +597,12 @@ bool DatabaseManager::queryFriends(int userId, int serviceId, std::string& jsonR
         "JOIN Users u ON f.friend_id = u.id "
         "WHERE f.user_id = ? AND f.service_id = ? "
         "ORDER BY f.add_time DESC;";
+
+    // 添加日志
+    Logger::getInstance().logInfo("Executing SQL: " + std::string(sql));
+    Logger::getInstance().logInfo("Parameters - user_id: " + std::to_string(userId) + 
+                                 ", service_id: " + std::to_string(serviceId));
+
     
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);

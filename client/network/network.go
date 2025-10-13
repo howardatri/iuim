@@ -144,7 +144,7 @@ func (m *NetworkManager) AddFriend(userID, friendID, serviceID int, remark strin
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
 	}
-
+	log.Printf("Parsed add_friend result: %+v", result)
 	return result, nil
 }
 

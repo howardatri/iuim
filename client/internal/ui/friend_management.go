@@ -148,13 +148,18 @@ func (fl *FriendList) GetContainer() *fyne.Container {
 
 // refreshFriends 刷新好友列表
 func (fl *FriendList) refreshFriends() {
+	log.Printf("Starting refreshFriends - userID: %d, serviceID: %d", fl.userID, fl.serviceID)
 	go func() {
 		result, err := fl.netManager.QueryFriends(fl.userID, fl.serviceID)
 		fyne.Do(func() {
 			if err != nil {
+				log.Printf("Refresh friends failed: %v", err)
 				dialog.ShowError(fmt.Errorf("获取好友列表失败: %v", err), fl.window)
 				return
 			}
+
+			// 添加调试日志
+			log.Printf("QueryFriends response in refresh: %+v", result)
 
 			// 检查响应状态码
 			code, ok := result["code"].(float64)
@@ -167,11 +172,42 @@ func (fl *FriendList) refreshFriends() {
 				return
 			}
 
-			// 解析好友列表
+			// 解析好友列表 - 关键修复
 			var friends []network.Friend
-			if data, ok := result["data"].(map[string]interface{}); ok {
+
+			// 首先尝试直接解析 data 为数组
+			if friendsData, ok := result["data"].([]interface{}); ok {
+				log.Printf("Data is directly an array with %d items", len(friendsData))
+				for i, friendData := range friendsData {
+					if friendMap, ok := friendData.(map[string]interface{}); ok {
+						friend := network.Friend{}
+						if id, ok := friendMap["friend_id"].(float64); ok {
+							friend.FriendID = int(id)
+						}
+						if nickname, ok := friendMap["nickname"].(string); ok {
+							friend.Nickname = nickname
+						}
+						if username, ok := friendMap["username"].(string); ok {
+							friend.Username = username
+						}
+						if remark, ok := friendMap["remark"].(string); ok {
+							friend.Remark = remark
+						}
+						if addTime, ok := friendMap["add_time"].(string); ok {
+							friend.AddTime = addTime
+						}
+						friends = append(friends, friend)
+						log.Printf("Friend %d: %+v", i, friend)
+					} else {
+						log.Printf("Friend data %d is not a map: %T", i, friendData)
+					}
+				}
+			} else if data, ok := result["data"].(map[string]interface{}); ok {
+				// 如果 data 是对象，尝试从 friends 字段获取
+				log.Printf("Data is a map with keys: %v", getMapKeys(data))
 				if friendsData, ok := data["friends"].([]interface{}); ok {
-					for _, friendData := range friendsData {
+					log.Printf("Found friends array with %d items", len(friendsData))
+					for i, friendData := range friendsData {
 						if friendMap, ok := friendData.(map[string]interface{}); ok {
 							friend := network.Friend{}
 							if id, ok := friendMap["friend_id"].(float64); ok {
@@ -190,18 +226,35 @@ func (fl *FriendList) refreshFriends() {
 								friend.AddTime = addTime
 							}
 							friends = append(friends, friend)
+							log.Printf("Friend %d: %+v", i, friend)
 						}
 					}
+				} else {
+					log.Printf("No friends array found in data map")
 				}
+			} else {
+				log.Printf("Data field is of unexpected type: %T", result["data"])
 			}
 
+			log.Printf("Updating friends list from %d to %d friends", len(fl.friends), len(friends))
 			fl.friends = friends
 			fl.friendsList.Refresh()
+			log.Printf("Friends list refreshed, now has %d friends", len(fl.friends))
 			if fl.onRefresh != nil {
+				log.Printf("Calling external onRefresh callback")
 				fl.onRefresh()
 			}
 		})
 	}()
+}
+
+// 添加这个辅助函数到文件顶部
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // deleteFriend 删除好友
@@ -310,7 +363,9 @@ func (fl *FriendList) editRemark(friend network.Friend) {
 
 // showAddFriendDialog 显示添加好友对话框
 func (fl *FriendList) showAddFriendDialog() {
+	log.Printf("Creating AddFriendDialog with onSuccess callback")
 	addDialog := NewAddFriendDialog(fl.window, fl.netManager, fl.userID, fl.serviceID, func() {
+		log.Printf("AddFriendDialog onSuccess callback triggered, refreshing friends list")
 		fl.refreshFriends()
 	})
 	addDialog.Show()
@@ -349,10 +404,10 @@ func NewAddFriendDialog(window fyne.Window, netManager *network.NetworkManager, 
 	// 创建搜索框
 	afd.searchEntry = widget.NewEntry()
 	afd.searchEntry.SetPlaceHolder("输入用户名或昵称搜索")
+	// 移除实时搜索，改为按钮触发
 	afd.searchEntry.OnChanged = func(text string) {
-		if strings.TrimSpace(text) != "" {
-			afd.searchUsers(strings.TrimSpace(text))
-		} else {
+		// 仅清空结果，不触发搜索
+		if strings.TrimSpace(text) == "" {
 			afd.users = []network.User{}
 			afd.resultsList.Refresh()
 		}
@@ -398,6 +453,7 @@ func NewAddFriendDialog(window fyne.Window, netManager *network.NetworkManager, 
 			// 更新添加按钮
 			addButton := hbox.Objects[3].(*widget.Button)
 			addButton.OnTapped = func() {
+				log.Printf("Add button tapped for user: %s (ID: %d)", user.Nickname, user.UserID)
 				afd.addFriend(user)
 			}
 		},
@@ -407,24 +463,39 @@ func NewAddFriendDialog(window fyne.Window, netManager *network.NetworkManager, 
 	afd.remarkEntry = widget.NewEntry()
 	afd.remarkEntry.SetPlaceHolder("可选：输入备注信息")
 
+	// 创建搜索按钮
+	searchButton := widget.NewButton("搜索", func() {
+		keyword := strings.TrimSpace(afd.searchEntry.Text)
+		if keyword != "" {
+			afd.searchUsers(keyword)
+		}
+	})
+
+	// 将搜索框和搜索按钮放在水平容器中
+	searchBox := container.NewHBox(afd.searchEntry, searchButton)
+
+	// 设置搜索结果列表的高度
+	resultContainer := container.NewScroll(afd.resultsList)
+	resultContainer.SetMinSize(fyne.NewSize(0, 200))
+
 	// 创建对话框内容
 	content := container.NewVBox(
 		widget.NewLabel("搜索用户:"),
-		afd.searchEntry,
+		searchBox,
 		widget.NewSeparator(),
 		widget.NewLabel("搜索结果:"),
-		container.NewScroll(afd.resultsList),
+		resultContainer,
 		widget.NewSeparator(),
 		widget.NewLabel("备注:"),
 		afd.remarkEntry,
 	)
 
 	// 设置内容大小
-	content.Resize(fyne.NewSize(500, 400))
+	content.Resize(fyne.NewSize(550, 450))
 
 	// 创建对话框
 	afd.dialog = dialog.NewCustom("添加好友", "关闭", content, window)
-
+	afd.dialog.Resize(fyne.NewSize(600, 500)) // 设置对话框本身的大小
 	return afd
 }
 
@@ -438,7 +509,7 @@ func (afd *AddFriendDialog) searchUsers(keyword string) {
 	go func() {
 		// 调用网络接口搜索用户
 		result, err := afd.netManager.SearchUsers(keyword)
-		
+
 		// 使用 fyne.Do 在主线程中更新UI
 		fyne.Do(func() {
 			if err != nil {
@@ -514,7 +585,7 @@ func (afd *AddFriendDialog) searchUsers(keyword string) {
 				}
 
 				user := network.User{}
-				
+
 				// 安全地提取用户信息
 				if id, ok := userMap["user_id"].(float64); ok {
 					user.UserID = int(id)
@@ -545,6 +616,10 @@ func (afd *AddFriendDialog) searchUsers(keyword string) {
 func (afd *AddFriendDialog) addFriend(user network.User) {
 	remark := strings.TrimSpace(afd.remarkEntry.Text)
 
+	// 添加调试日志
+	log.Printf("Attempting to add friend - userID: %d, friendID: %d, serviceID: %d, remark: %s",
+		afd.userID, user.UserID, afd.serviceID, remark)
+
 	go func() {
 		result, err := afd.netManager.AddFriend(afd.userID, user.UserID, afd.serviceID, remark)
 		fyne.Do(func() {
@@ -552,6 +627,9 @@ func (afd *AddFriendDialog) addFriend(user network.User) {
 				dialog.ShowError(fmt.Errorf("添加好友失败: %v", err), afd.window)
 				return
 			}
+
+			// 添加响应日志
+			log.Printf("Add friend response: %+v", result)
 
 			// 检查响应状态码
 			code, ok := result["code"].(float64)
@@ -568,6 +646,9 @@ func (afd *AddFriendDialog) addFriend(user network.User) {
 			afd.dialog.Hide()
 			if afd.onSuccess != nil {
 				afd.onSuccess()
+				log.Printf("onSuccess callback executed")
+			} else {
+				log.Printf("onSuccess callback is nil, no refresh will occur")
 			}
 		})
 	}()
