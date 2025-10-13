@@ -286,7 +286,8 @@ const server = net.createServer((socket) => {
         
         // 转发到FriendSVC的add接口
         axios.post(`${FRIEND_SVC_BASE_URL}/add`, friendData, {
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000  // 添加超时设置
         })
         .then(response => {
           console.log(`Add friend response from FriendSVC:`, response.data);
