@@ -71,7 +71,7 @@ void handleMessageSend(const httplib::Request& req, httplib::Response& res) {
         
         nlohmann::json response;
         if (success) {
-            response["code"] = 200;
+            response["code"] = 0;
             response["message"] = "Message sent successfully";
             response["data"] = {
                 {"sender_id", senderId},
@@ -177,7 +177,7 @@ void handleMessageHistory(const httplib::Request& req, httplib::Response& res) {
         
         nlohmann::json response;
         if (success) {
-            response["code"] = 200;
+            response["code"] = 0;
             response["message"] = "Message history retrieved successfully";
             
             // 解析数据库返回的JSON结果
