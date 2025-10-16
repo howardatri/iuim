@@ -381,6 +381,108 @@ func (m *NetworkManager) DeactivateService(userId int, serviceId int) (map[strin
 }
 
 // sendCommand 发送命令到网关并获取响应
+// SendMessage 发送消息
+func (m *NetworkManager) SendMessage(senderID, receiverID, serviceID int, content string) (map[string]interface{}, error) {
+	// 构建发送消息命令
+	messageData := map[string]interface{}{
+		"sender_id":   senderID,
+		"receiver_id": receiverID,
+		"type":        0, // 私聊类型
+		"content":     content,
+		"service_id":  serviceID,
+	}
+
+	jsonData, err := json.Marshal(messageData)
+	if err != nil {
+		log.Printf("SendMessage: 序列化消息数据失败 - senderID: %d, receiverID: %d, serviceID: %d, content: %s, error: %v", 
+			senderID, receiverID, serviceID, content, err)
+		return nil, fmt.Errorf("序列化消息数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("send_message %s", string(jsonData))
+	log.Printf("SendMessage: 发送命令 - %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		log.Printf("SendMessage: 发送命令失败 - senderID: %d, receiverID: %d, serviceID: %d, error: %v", 
+			senderID, receiverID, serviceID, err)
+		return nil, fmt.Errorf("发送消息命令失败: %w", err)
+	}
+
+	// 解析响应
+	// 响应格式: send_message_resp {JSON数据}
+	if !strings.HasPrefix(resp, "send_message_resp ") {
+		log.Printf("SendMessage: 无效的响应格式 - senderID: %d, receiverID: %d, serviceID: %d, response: %s", 
+			senderID, receiverID, serviceID, resp)
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "send_message_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		log.Printf("SendMessage: 解析响应JSON失败 - senderID: %d, receiverID: %d, serviceID: %d, jsonStr: %s, error: %v", 
+			senderID, receiverID, serviceID, jsonStr, err)
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	log.Printf("SendMessage: 成功 - senderID: %d, receiverID: %d, serviceID: %d, result: %v", 
+		senderID, receiverID, serviceID, result)
+	return result, nil
+}
+
+// GetMessageHistory 获取消息历史记录
+// This is the corrected version that accepts page and pageSize.
+func (m *NetworkManager) GetMessageHistory(userID, targetID, serviceID, page, pageSize int) (map[string]interface{}, error) {
+	// 构建获取历史消息命令
+	historyData := map[string]interface{}{
+		"user_id":    userID,
+		"target_id":  targetID,
+		"type":       0, // 私聊类型
+		"service_id": serviceID,
+		"page":       page,     // Use the 'page' parameter
+		"page_size":  pageSize, // Use the 'pageSize' parameter
+	}
+
+	jsonData, err := json.Marshal(historyData)
+	if err != nil {
+		log.Printf("GetMessageHistory: 序列化历史消息数据失败 - userID: %d, targetID: %d, serviceID: %d, error: %v",
+			userID, targetID, serviceID, err)
+		return nil, fmt.Errorf("序列化历史消息数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("get_history %s", string(jsonData))
+	log.Printf("GetMessageHistory: 发送命令 - %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		log.Printf("GetMessageHistory: 发送命令失败 - userID: %d, targetID: %d, serviceID: %d, error: %v",
+			userID, targetID, serviceID, err)
+		return nil, fmt.Errorf("获取历史消息命令失败: %w", err)
+	}
+
+	// 解析响应
+	// 响应格式: get_history_resp {JSON数据}
+	if !strings.HasPrefix(resp, "get_history_resp ") {
+		log.Printf("GetMessageHistory: 无效的响应格式 - userID: %d, targetID: %d, serviceID: %d, response: %s",
+			userID, targetID, serviceID, resp)
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "get_history_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		log.Printf("GetMessageHistory: 解析响应JSON失败 - userID: %d, targetID: %d, serviceID: %d, jsonStr: %s, error: %v",
+			userID, targetID, serviceID, jsonStr, err)
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	log.Printf("GetMessageHistory: 成功 - userID: %d, targetID: %d, serviceID: %d, result: %v",
+		userID, targetID, serviceID, result)
+	return result, nil
+}
+
 func (m *NetworkManager) sendCommand(cmd string) (string, error) {
 	// 连接到网关
 	conn, err := net.Dial("tcp", m.serverAddr)

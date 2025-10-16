@@ -39,14 +39,25 @@ void handleFriendAdd(const httplib::Request& req, httplib::Response& res) {
                                      ", remark: " + remark);  
 
         // 调用数据库管理器添加好友
-        bool success = DatabaseManager::getInstance().addFriend(userId, friendId, serviceId, remark);
+        bool success1 = DatabaseManager::getInstance().addFriend(userId, friendId, serviceId, remark);
+        bool success2 = DatabaseManager::getInstance().addFriend(friendId, userId, serviceId, "");
         
-        if (success) {
+        if (success1 && success2) {
             responseJson["code"] = 0;
             responseJson["message"] = "Friend added successfully";
+            Logger::getInstance().logInfo("Bidirectional friend relationship created successfully");
         } else {
+            // 如果其中一个失败，回滚另一个
+            if (success1) {
+                DatabaseManager::getInstance().deleteFriend(userId, friendId, serviceId);
+            }
+            if (success2) {
+                DatabaseManager::getInstance().deleteFriend(friendId, userId, serviceId);
+            }
+            
             responseJson["code"] = 500;
             responseJson["message"] = "Failed to add friend";
+            Logger::getInstance().logError("Failed to create bidirectional friend relationship");
         }
     } catch (const std::exception& e) {
         Logger::getInstance().logError("Error in handleFriendAdd: " + std::string(e.what()));

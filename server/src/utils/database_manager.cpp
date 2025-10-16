@@ -5,9 +5,34 @@
 #include <sstream>
 #include <filesystem>
 #include <fstream>
+#include <string>
 
 namespace iuim {
 namespace utils {
+
+    // 新增的辅助函数：用于转义JSON字符串中的特殊字符
+std::string escapeJsonString(const std::string& input) {
+    std::ostringstream oss;
+    for (char c : input) {
+        switch (c) {
+            case '"':  oss << "\\\""; break;
+            case '\\': oss << "\\\\"; break;
+            case '\b': oss << "\\b";  break;
+            case '\f': oss << "\\f";  break;
+            case '\n': oss << "\\n";  break;
+            case '\r': oss << "\\r";  break;
+            case '\t': oss << "\\t";  break;
+            default:
+                if ('\x00' <= c && c <= '\x1f') {
+                    // 对于其他控制字符，使用unicode转义
+                    oss << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(c);
+                } else {
+                    oss << c;
+                }
+        }
+    }
+    return oss.str();
+}
 
 // 获取单例实例
 DatabaseManager& DatabaseManager::getInstance() {
@@ -851,8 +876,11 @@ bool DatabaseManager::getMessageHistory(int userId, int targetId, int type, int 
         jsonResult += "\"receiver_id\":" + std::to_string(sqlite3_column_int(stmt, 2)) + ",";
         jsonResult += "\"type\":" + std::to_string(sqlite3_column_int(stmt, 3)) + ",";
         
-        const unsigned char* content = sqlite3_column_text(stmt, 4);
-        jsonResult += "\"content\":\"" + (content ? std::string(reinterpret_cast<const char*>(content)) : "") + "\",";
+        const unsigned char* content_raw = sqlite3_column_text(stmt, 4);
+        // 【关键修改】: 对从数据库取出的 content 字符串进行转义
+        std::string content_str = content_raw ? reinterpret_cast<const char*>(content_raw) : "";
+        std::string escaped_content = escapeJsonString(content_str);
+        jsonResult += "\"content\":\"" + escaped_content + "\",";
         
         const unsigned char* sendTime = sqlite3_column_text(stmt, 5);
         jsonResult += "\"send_time\":\"" + (sendTime ? std::string(reinterpret_cast<const char*>(sendTime)) : "") + "\",";
