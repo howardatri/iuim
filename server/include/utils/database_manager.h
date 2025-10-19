@@ -49,6 +49,14 @@ public:
     // 消息管理相关方法
     bool sendMessage(int senderId, int receiverId, int type, const std::string& content, int serviceId);
     bool getMessageHistory(int userId, int targetId, int type, int serviceId, int page, int pageSize, std::string& jsonResult);
+    
+    // 群组管理相关方法
+    bool joinGroup(int userId, int groupId, int serviceId, int joinType);
+    bool quitGroup(int userId, int groupId, int serviceId);
+    bool queryGroupMembers(int groupId, int serviceId, std::string& jsonResult);
+    bool createGroup(int creatorId, const std::string& groupName, int serviceId, const std::string& description);
+    bool isUserInGroup(int userId, int groupId, int serviceId);
+    bool getUserGroups(int userId, int serviceId, std::string& jsonResult);
 
 private:
     // 私有构造函数和析构函数
@@ -69,6 +77,9 @@ private:
     
     // 创建消息相关表 (私有的)
     bool createMessageTables();
+    
+    // 创建群组相关表 (私有的)
+    bool createGroupTables();
     
     // 计算SHA256哈希
     std::string hashPassword(const std::string& password);

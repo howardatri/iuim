@@ -79,17 +79,9 @@ func CreateQQServiceView(window fyne.Window, netManager *network.NetworkManager,
 	// 创建好友列表组件
 	friendList := NewFriendList(window, netManager, userID, serviceID)
 
-	// 创建群组列表
-	groupsLabel := widget.NewLabel("群组列表")
-	groupsLabel.TextStyle = fyne.TextStyle{Bold: true}
-
-	groupsList := widget.NewList(
-		func() int { return 3 },
-		func() fyne.CanvasObject { return widget.NewLabel("群组") },
-		func(id widget.ListItemID, obj fyne.CanvasObject) {
-			obj.(*widget.Label).SetText(fmt.Sprintf("群组 %d", id+1))
-		},
-	)
+	// 创建群组管理组件
+	groupManager := NewGroupManager(window, netManager, userID, serviceID)
+	groupList := NewGroupList(window, netManager, userID, serviceID)
 
 	// 创建在线状态
 	statusLabel := widget.NewLabel("在线状态: 在线")
@@ -103,13 +95,19 @@ func CreateQQServiceView(window fyne.Window, netManager *network.NetworkManager,
 		widget.NewLabel("这里将显示消息内容"),
 	)
 
-	// 创建左侧面板，集成好友管理
+	// 创建QQ群组选项卡
+	groupTabs := container.NewAppTabs(
+		container.NewTabItem("我的QQ群", groupList.GetContainer()),
+		container.NewTabItem("群组管理", groupManager.GetContainer()),
+	)
+
+	// 创建左侧面板，集成好友管理和群组功能
 	leftPanel := container.NewVBox(
 		widget.NewLabel("QQ好友"),
 		friendList.GetContainer(),
 		widget.NewSeparator(),
-		groupsLabel,
-		container.NewVScroll(groupsList),
+		widget.NewLabel("QQ群组"),
+		groupTabs,
 		statusLabel,
 	)
 
@@ -131,12 +129,23 @@ func CreateWeChatServiceView(window fyne.Window, netManager *network.NetworkMana
 	// 创建好友列表组件
 	friendList := NewFriendList(window, netManager, userID, serviceID)
 
+	// 创建群组管理组件
+	groupManager := NewGroupManager(window, netManager, userID, serviceID)
+	groupList := NewGroupList(window, netManager, userID, serviceID)
+
+	// 创建通讯录内容，包含好友和群组
+	contactsTabs := container.NewAppTabs(
+		container.NewTabItem("微信好友", friendList.GetContainer()),
+		container.NewTabItem("微信群聊", groupList.GetContainer()),
+		container.NewTabItem("群组管理", groupManager.GetContainer()),
+	)
+
 	// 创建微信特有的界面组件
 	tabs := container.NewAppTabs(
 		container.NewTabItem("聊天", widget.NewLabel("聊天会话列表将显示在这里")),
 		container.NewTabItem("通讯录", container.NewVBox(
 			widget.NewLabel("微信通讯录"),
-			friendList.GetContainer(),
+			contactsTabs,
 		)),
 		container.NewTabItem("发现", container.NewVBox(
 			widget.NewButton("朋友圈", func() {}),
@@ -184,13 +193,21 @@ func CreateWeiboServiceView(window fyne.Window, netManager *network.NetworkManag
 		},
 	)
 
-	// 创建右侧面板，集成好友管理
+	// 创建群组管理组件
+	groupManager := NewGroupManager(window, netManager, userID, serviceID)
+	groupList := NewGroupList(window, netManager, userID, serviceID)
+
+	// 创建关注管理选项卡
+	followTabs := container.NewAppTabs(
+		container.NewTabItem("我的关注", friendList.GetContainer()),
+		container.NewTabItem("微博社区", groupList.GetContainer()),
+		container.NewTabItem("社区管理", groupManager.GetContainer()),
+	)
+
+	// 创建右侧面板，集成好友管理和群组功能
 	rightPanel := container.NewVBox(
 		widget.NewCard("热搜榜", "", widget.NewLabel("热搜内容将显示在这里")),
-		widget.NewCard("关注管理", "", container.NewVBox(
-			widget.NewLabel("我的关注"),
-			friendList.GetContainer(),
-		)),
+		widget.NewCard("关注管理", "", followTabs),
 		widget.NewButton("发布微博", func() {}),
 	)
 

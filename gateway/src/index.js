@@ -23,6 +23,11 @@ const MSG_SVC_HOST = 'localhost';
 const MSG_SVC_PORT = 50052;
 const MSG_SVC_BASE_URL = `http://${MSG_SVC_HOST}:${MSG_SVC_PORT}`;
 
+// GroupSVC配置
+const GROUP_SVC_HOST = 'localhost';
+const GROUP_SVC_PORT = 50055;
+const GROUP_SVC_BASE_URL = `http://${GROUP_SVC_HOST}:${GROUP_SVC_PORT}`;
+
 // 创建TCP服务器
 const server = net.createServer((socket) => {
   console.log('Client connected');
@@ -505,7 +510,197 @@ const server = net.createServer((socket) => {
             error: error.message
         })}\n`);
     }
-    } else {
+    }else if (cmd === 'join_group') {
+    // 处理加入群组命令
+    try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const groupData = JSON.parse(jsonStr);
+        
+        console.log(`Processing join_group command with data:`, groupData);
+        
+        // 转发到GroupSVC的join接口
+        axios.post(`${GROUP_SVC_BASE_URL}/join`, groupData, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+            console.log(`Join group response from GroupSVC:`, response.data);
+            socket.write(`join_group_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+            console.error(`Error in join_group request:`, error.message);
+            let errorResponse = {
+                code: 500,
+                message: 'Error connecting to GroupSVC',
+                error: error.message
+            };
+            
+            if (error.response && error.response.data) {
+                errorResponse = error.response.data;
+            }
+            
+            socket.write(`join_group_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+    } catch (error) {
+        console.error(`Error parsing join_group command:`, error.message);
+        socket.write(`join_group_resp ${JSON.stringify({
+            code: 400,
+            message: 'Invalid JSON format',
+            error: error.message
+        })}\n`);
+    }
+} else if (cmd === 'quit_group') {
+    // 处理退出群组命令
+    try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const groupData = JSON.parse(jsonStr);
+        
+        console.log(`Processing quit_group command with data:`, groupData);
+        
+        // 转发到GroupSVC的quit接口
+        axios.post(`${GROUP_SVC_BASE_URL}/quit`, groupData, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+            console.log(`Quit group response from GroupSVC:`, response.data);
+            socket.write(`quit_group_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+            console.error(`Error in quit_group request:`, error.message);
+            let errorResponse = {
+                code: 500,
+                message: 'Error connecting to GroupSVC',
+                error: error.message
+            };
+            
+            if (error.response && error.response.data) {
+                errorResponse = error.response.data;
+            }
+            
+            socket.write(`quit_group_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+    } catch (error) {
+        console.error(`Error parsing quit_group command:`, error.message);
+        socket.write(`quit_group_resp ${JSON.stringify({
+            code: 400,
+            message: 'Invalid JSON format',
+            error: error.message
+        })}\n`);
+    }
+} else if (cmd === 'query_group_members') {
+    // 处理查询群成员命令
+    try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const groupData = JSON.parse(jsonStr);
+        
+        console.log(`Processing query_group_members command with data:`, groupData);
+        
+        // 转发到GroupSVC的members接口
+        axios.post(`${GROUP_SVC_BASE_URL}/members`, groupData, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+            console.log(`Query group members response from GroupSVC:`, response.data);
+            socket.write(`query_group_members_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+            console.error(`Error in query_group_members request:`, error.message);
+            let errorResponse = {
+                code: 500,
+                message: 'Error connecting to GroupSVC',
+                error: error.message
+            };
+            
+            if (error.response && error.response.data) {
+                errorResponse = error.response.data;
+            }
+            
+            socket.write(`query_group_members_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+    } catch (error) {
+        console.error(`Error parsing query_group_members command:`, error.message);
+        socket.write(`query_group_members_resp ${JSON.stringify({
+            code: 400,
+            message: 'Invalid JSON format',
+            error: error.message
+        })}\n`);
+    }
+} else if (cmd === 'create_group') {
+    // 处理创建群组命令
+    try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const groupData = JSON.parse(jsonStr);
+        
+        console.log(`Processing create_group command with data:`, groupData);
+        
+        // 转发到GroupSVC的create接口
+        axios.post(`${GROUP_SVC_BASE_URL}/create`, groupData, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+            console.log(`Create group response from GroupSVC:`, response.data);
+            socket.write(`create_group_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+            console.error(`Error in create_group request:`, error.message);
+            let errorResponse = {
+                code: 500,
+                message: 'Error connecting to GroupSVC',
+                error: error.message
+            };
+            
+            if (error.response && error.response.data) {
+                errorResponse = error.response.data;
+            }
+            
+            socket.write(`create_group_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+    } catch (error) {
+        console.error(`Error parsing create_group command:`, error.message);
+        socket.write(`create_group_resp ${JSON.stringify({
+            code: 400,
+            message: 'Invalid JSON format',
+            error: error.message
+        })}\n`);
+    }
+}else if (cmd === 'get_user_groups') {
+    // 处理获取用户群组列表命令
+    try {
+        const jsonStr = message.substring(message.indexOf(' ') + 1);
+        const groupData = JSON.parse(jsonStr);
+        
+        console.log(`Processing get_user_groups command with data:`, groupData);
+        
+        // 转发到GroupSVC的list接口
+        axios.post(`${GROUP_SVC_BASE_URL}/list`, groupData, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+            console.log(`Get user groups response from GroupSVC:`, response.data);
+            socket.write(`get_user_groups_resp ${JSON.stringify(response.data)}\n`);
+        })
+        .catch(error => {
+            console.error(`Error in get_user_groups request:`, error.message);
+            let errorResponse = {
+                code: 500,
+                message: 'Error connecting to GroupSVC',
+                error: error.message
+            };
+            
+            if (error.response && error.response.data) {
+                errorResponse = error.response.data;
+            }
+            
+            socket.write(`get_user_groups_resp ${JSON.stringify(errorResponse)}\n`);
+        });
+    } catch (error) {
+        console.error(`Error parsing get_user_groups command:`, error.message);
+        socket.write(`get_user_groups_resp ${JSON.stringify({
+            code: 400,
+            message: 'Invalid JSON format',
+            error: error.message
+        })}\n`);
+    }
+} else {
       // 未知命令
       socket.write(JSON.stringify({
         code: 400,
