@@ -1,5 +1,6 @@
 #include "../../include/services/user_service.h"
 #include "../../include/services/user_handler.h"
+#include "../../include/services/user_controller.h"
 #include "../../../third_party/httplib/httplib.h"
 #include "../../../third_party/nlohmann/json.hpp"
 #include <iostream>
@@ -34,11 +35,11 @@ void UserService::start() {
         res.set_content(response.dump(), "application/json");
     });
     
-    // 注册用户注册接口
-    server_->Post("/register", handleRegister);
+    // 注册用户注册接口 (使用OOP包裹器)
+    server_->Post("/register", UserController::handleRegister);
     
-    // 注册用户登录接口
-    server_->Post("/login", handleLogin);
+    // 注册用户登录接口 (使用OOP包裹器)
+    server_->Post("/login", UserController::handleLogin);
     
     std::cout << "UserService starting on port 50051..." << std::endl;
     server_->listen("0.0.0.0", 50051);

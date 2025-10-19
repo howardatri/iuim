@@ -6,6 +6,7 @@ if not exist "build" mkdir build
 g++ -std=c++17 ^
     src/messagesvc_main.cpp ^
     src/services/message_handler.cpp ^
+    src/services/message_controller.cpp ^
     src/utils/database_manager.cpp ^
     src/utils/logger.cpp ^
     -I./include ^

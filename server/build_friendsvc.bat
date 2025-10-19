@@ -6,6 +6,7 @@ if not exist "build" mkdir build
 g++ -std=c++17 ^
     src/friendsvc_main.cpp ^
     src/services/friend_handler.cpp ^
+    src/services/friend_controller.cpp ^
     src/utils/database_manager.cpp ^
     src/utils/logger.cpp ^
     -I./include ^
