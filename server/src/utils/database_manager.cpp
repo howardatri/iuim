@@ -88,7 +88,18 @@ DatabaseManager::DatabaseManager(const std::string& dbPath)
         Logger::getInstance().logError(errorMsg);
         throw std::runtime_error(errorMsg);
     }
+    
+    // 创建群组相关表
+    if (!createGroupTables()) {
+        std::string errorMsg = "Failed to create group tables";
+        Logger::getInstance().logError(errorMsg);
+        throw std::runtime_error(errorMsg);
+    }
+    
+    Logger::getInstance().logInfo("All database tables initialized successfully");
 }
+
+
 
 DatabaseManager::~DatabaseManager() {
     if (db_) {
@@ -938,6 +949,313 @@ bool DatabaseManager::getMessageHistory(int userId, int targetId, int type, int 
     Logger::getInstance().logInfo("Message history queried successfully for user " + std::to_string(userId) + 
                                  " and target " + std::to_string(targetId) + 
                                  " for service " + std::to_string(serviceId));
+    return true;
+}
+
+// 创建群组相关表
+bool DatabaseManager::createGroupTables() {
+    // 创建群组表
+    const char* createGroupsTableSQL = 
+        "CREATE TABLE IF NOT EXISTS Groups ("
+        "group_id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "group_name TEXT NOT NULL,"
+        "creator_id INTEGER NOT NULL,"
+        "service_id INTEGER NOT NULL,"
+        "description TEXT,"
+        "create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "FOREIGN KEY (creator_id) REFERENCES Users(user_id),"
+        "FOREIGN KEY (service_id) REFERENCES Services(service_id)"
+        ");";
+    
+    // 创建群成员表
+    const char* createGroupMembersTableSQL = 
+        "CREATE TABLE IF NOT EXISTS GroupMembers ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "group_id INTEGER NOT NULL,"
+        "user_id INTEGER NOT NULL,"
+        "service_id INTEGER NOT NULL,"
+        "join_type INTEGER NOT NULL,"  // 0: 申请加入(QQ群), 1: 推荐加入(微信群)
+        "join_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "FOREIGN KEY (group_id) REFERENCES Groups(group_id),"
+        "FOREIGN KEY (user_id) REFERENCES Users(user_id),"
+        "FOREIGN KEY (service_id) REFERENCES Services(service_id),"
+        "UNIQUE(group_id, user_id, service_id)"
+        ");";
+    
+    char* errMsg = nullptr;
+    
+    // 执行创建群组表的SQL
+    if (sqlite3_exec(db_, createGroupsTableSQL, nullptr, nullptr, &errMsg) != SQLITE_OK) {
+        std::string error = "Failed to create Groups table: ";
+        error += errMsg;
+        sqlite3_free(errMsg);
+        Logger::getInstance().logError(error);
+        return false;
+    }
+    
+    // 执行创建群成员表的SQL
+    if (sqlite3_exec(db_, createGroupMembersTableSQL, nullptr, nullptr, &errMsg) != SQLITE_OK) {
+        std::string error = "Failed to create GroupMembers table: ";
+        error += errMsg;
+        sqlite3_free(errMsg);
+        Logger::getInstance().logError(error);
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Group tables created successfully");
+    return true;
+}
+
+// 创建新群组
+bool DatabaseManager::createGroup(int creatorId, const std::string& groupName, int serviceId, const std::string& description) {
+    const char* sql = "INSERT INTO Groups (group_name, creator_id, service_id, description) VALUES (?, ?, ?, ?);";
+    
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare create group statement");
+        return false;
+    }
+    
+    sqlite3_bind_text(stmt, 1, groupName.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, creatorId);
+    sqlite3_bind_int(stmt, 3, serviceId);
+    sqlite3_bind_text(stmt, 4, description.c_str(), -1, SQLITE_STATIC);
+    
+    bool success = false;
+    if (sqlite3_step(stmt) == SQLITE_DONE) {
+        // 获取新创建的群组ID
+        int groupId = sqlite3_last_insert_rowid(db_);
+        
+        // 创建者自动成为群成员
+        success = joinGroup(creatorId, groupId, serviceId, 1); // 创建者以推荐方式加入
+        
+        if (success) {
+            Logger::getInstance().logInfo("Group created successfully: " + groupName + 
+                                         " by user " + std::to_string(creatorId) + 
+                                         " for service " + std::to_string(serviceId));
+        } else {
+            Logger::getInstance().logError("Failed to add creator to the group");
+        }
+    } else {
+        Logger::getInstance().logError("Failed to create group: " + groupName);
+    }
+    
+    sqlite3_finalize(stmt);
+    return success;
+}
+
+// 加入群组
+bool DatabaseManager::joinGroup(int userId, int groupId, int serviceId, int joinType) {
+    // 检查用户是否已在群组中
+    if (isUserInGroup(userId, groupId, serviceId)) {
+        Logger::getInstance().logError("User " + std::to_string(userId) + 
+                                        " is already in group " + std::to_string(groupId));
+        return false;
+    }
+    
+    const char* sql = "INSERT INTO GroupMembers (group_id, user_id, service_id, join_type) VALUES (?, ?, ?, ?);";
+    
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare join group statement");
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, groupId);
+    sqlite3_bind_int(stmt, 2, userId);
+    sqlite3_bind_int(stmt, 3, serviceId);
+    sqlite3_bind_int(stmt, 4, joinType);
+    
+    bool success = false;
+    if (sqlite3_step(stmt) == SQLITE_DONE) {
+        success = true;
+        Logger::getInstance().logInfo("User " + std::to_string(userId) + 
+                                     " joined group " + std::to_string(groupId) + 
+                                     " for service " + std::to_string(serviceId) + 
+                                     " with join type " + std::to_string(joinType));
+    } else {
+        Logger::getInstance().logError("Failed to join group: " + std::to_string(groupId) + 
+                                      " for user " + std::to_string(userId));
+    }
+    
+    sqlite3_finalize(stmt);
+    return success;
+}
+
+// 退出群组
+bool DatabaseManager::quitGroup(int userId, int groupId, int serviceId) {
+    // 检查用户是否在群组中
+    if (!isUserInGroup(userId, groupId, serviceId)) {
+        Logger::getInstance().logError("User " + std::to_string(userId) + 
+                                        " is not in group " + std::to_string(groupId));
+        return false;
+    }
+    
+    const char* sql = "DELETE FROM GroupMembers WHERE user_id = ? AND group_id = ? AND service_id = ?;";
+    
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare quit group statement");
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    sqlite3_bind_int(stmt, 2, groupId);
+    sqlite3_bind_int(stmt, 3, serviceId);
+    
+    bool success = false;
+    if (sqlite3_step(stmt) == SQLITE_DONE) {
+        success = true;
+        Logger::getInstance().logInfo("User " + std::to_string(userId) + 
+                                     " quit group " + std::to_string(groupId) + 
+                                     " for service " + std::to_string(serviceId));
+    } else {
+        Logger::getInstance().logError("Failed to quit group: " + std::to_string(groupId) + 
+                                      " for user " + std::to_string(userId));
+    }
+    
+    sqlite3_finalize(stmt);
+    return success;
+}
+
+// 查询群组成员 - 修改为与其他查询方法一致的风格
+bool DatabaseManager::queryGroupMembers(int groupId, int serviceId, std::string& jsonResult) {
+    if (!db_) return false;
+    
+    const char* sql = 
+        "SELECT u.id, u.username, u.nickname, gm.join_time "
+        "FROM GroupMembers gm "
+        "JOIN Users u ON gm.user_id = u.id "
+        "WHERE gm.group_id = ? AND gm.service_id = ? "
+        "ORDER BY gm.join_time;";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare query group members statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, groupId);
+    sqlite3_bind_int(stmt, 2, serviceId);
+    
+    jsonResult = "[";
+    bool first = true;
+    
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int userId = sqlite3_column_int(stmt, 0);
+        const char* username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* nickname = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char* joinTime = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        
+        if (!first) {
+            jsonResult += ",";
+        }
+        
+        jsonResult += "{";
+        jsonResult += "\"user_id\":" + std::to_string(userId) + ",";
+        jsonResult += "\"username\":\"" + (username ? std::string(username) : "") + "\",";
+        jsonResult += "\"nickname\":\"" + (nickname ? std::string(nickname) : "") + "\",";
+        jsonResult += "\"join_time\":\"" + (joinTime ? std::string(joinTime) : "") + "\"";
+        jsonResult += "}";
+        
+        first = false;
+    }
+    
+    jsonResult += "]";
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to query group members: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Group members queried successfully: group=" + std::to_string(groupId) + 
+                                 ", service=" + std::to_string(serviceId));
+    return true;
+}
+
+// 检查用户是否在群组中
+bool DatabaseManager::isUserInGroup(int userId, int groupId, int serviceId) {
+    const char* sql = "SELECT COUNT(*) FROM GroupMembers WHERE user_id = ? AND group_id = ? AND service_id = ?;";
+    
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare check user in group statement");
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    sqlite3_bind_int(stmt, 2, groupId);
+    sqlite3_bind_int(stmt, 3, serviceId);
+    
+    bool isInGroup = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        isInGroup = (sqlite3_column_int(stmt, 0) > 0);
+    }
+    
+    sqlite3_finalize(stmt);
+    return isInGroup;
+}
+
+bool DatabaseManager::getUserGroups(int userId, int serviceId, std::string& jsonResult) {
+    if (!db_) return false;
+    
+    const char* sql = 
+        "SELECT g.group_id, g.group_name, g.description, g.creator_id, g.create_time, "
+        "(SELECT COUNT(*) FROM GroupMembers gm WHERE gm.group_id = g.group_id AND gm.service_id = g.service_id) as member_count "
+        "FROM Groups g "
+        "JOIN GroupMembers gm ON g.group_id = gm.group_id AND g.service_id = gm.service_id "
+        "WHERE gm.user_id = ? AND g.service_id = ? "
+        "ORDER BY g.create_time DESC;";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare get user groups statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    sqlite3_bind_int(stmt, 2, serviceId);
+    
+    jsonResult = "[";
+    bool first = true;
+    
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int groupId = sqlite3_column_int(stmt, 0);
+        const char* groupName = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* description = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        int creatorId = sqlite3_column_int(stmt, 3);
+        const char* createTime = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        int memberCount = sqlite3_column_int(stmt, 5);
+        
+        if (!first) {
+            jsonResult += ",";
+        }
+        
+        jsonResult += "{";
+        jsonResult += "\"group_id\":" + std::to_string(groupId) + ",";
+        jsonResult += "\"group_name\":\"" + (groupName ? escapeJsonString(std::string(groupName)) : "") + "\",";
+        jsonResult += "\"description\":\"" + (description ? escapeJsonString(std::string(description)) : "") + "\",";
+        jsonResult += "\"creator_id\":" + std::to_string(creatorId) + ",";
+        jsonResult += "\"create_time\":\"" + (createTime ? std::string(createTime) : "") + "\",";
+        jsonResult += "\"member_count\":" + std::to_string(memberCount);
+        jsonResult += "}";
+        
+        first = false;
+    }
+    
+    jsonResult += "]";
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to get user groups: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("User groups queried successfully: user=" + std::to_string(userId) + 
+                                 ", service=" + std::to_string(serviceId));
     return true;
 }
 
