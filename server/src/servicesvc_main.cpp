@@ -1,4 +1,5 @@
 #include "../include/services/service_handler.h"
+#include "../include/services/service_controller.h"
 #include "../include/utils/database_manager.h"
 #include "../include/utils/logger.h"
 #include <iostream>
@@ -8,7 +9,7 @@ using namespace iuim::services;
 
 int main() {
     // 初始化日志
-    Logger::getInstance().logInfo("Starting ServiceSVC...");
+    Logger::getInstance().logInfo("Starting ServiceSVC with Object-Oriented Wrapper...");
     
     try {
         // 确保数据库已初始化
@@ -18,10 +19,10 @@ int main() {
         // 创建HTTP服务器
         httplib::Server server;
         
-        // 注册路由
-        server.Post("/activate", handleActivate);
-        server.Post("/deactivate", handleDeactivate);
-        server.Post("/query_user_services", handleQueryUserServices);
+        // 注册路由 (使用OOP包裹器)
+        server.Post("/activate", ServiceController::handleActivate);
+        server.Post("/deactivate", ServiceController::handleDeactivate);
+        server.Post("/query_user_services", ServiceController::handleQueryUserServices);
         
         // 添加健康检查接口
         server.Get("/health", [](const httplib::Request&, httplib::Response& res) {

@@ -7,6 +7,7 @@ g++ -std=c++17 ^
     src/usersvc_main.cpp ^
     src/services/user_service.cpp ^
     src/services/user_handler.cpp ^
+    src/services/user_controller.cpp ^
     src/utils/database_manager.cpp ^
     src/utils/logger.cpp ^
     -I./include ^

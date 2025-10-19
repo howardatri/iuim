@@ -112,17 +112,17 @@ func NewFriendList(window fyne.Window, netManager *network.NetworkManager, userI
 		widget.NewPopUpMenu(menu, fl.window.Canvas()).ShowAtPosition(fyne.CurrentApp().Driver().AbsolutePositionForObject(fl.friendsList))
 
 		// 取消列表的选中状态，避免一直高亮
-    	fl.friendsList.Unselect(id)
+		fl.friendsList.Unselect(id)
 
-    	// 创建并显示聊天窗口
-    	chatWin := NewChatWindow(
-        fl.netManager,
-        fl.userID,
-        friend.FriendID,
-        fl.serviceID,
-        friend.Nickname,
-    	)
-    	chatWin.Show() // 调用我们新增的 Show 方法
+		// 创建并显示聊天窗口
+		chatWin := NewChatWindow(
+			fl.netManager,
+			fl.userID,
+			friend.FriendID,
+			fl.serviceID,
+			friend.Nickname,
+		)
+		chatWin.Show() // 调用我们新增的 Show 方法
 	}
 
 	// 创建刷新按钮

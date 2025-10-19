@@ -3,11 +3,12 @@
 #include "../include/utils/database_manager.h"
 #include "../include/utils/logger.h"
 #include "../include/services/message_handler.h"
+#include "../include/services/message_controller.h"
 
 int main() {
     try {
         // 初始化日志系统
-        iuim::utils::Logger::getInstance().logInfo("Starting MsgSVC microservice...");
+        iuim::utils::Logger::getInstance().logInfo("Starting MsgSVC with Object-Oriented Wrapper...");
         
         // 初始化数据库连接
         iuim::utils::DatabaseManager& dbManager = iuim::utils::DatabaseManager::getInstance();
@@ -29,14 +30,14 @@ int main() {
             res.status = 200;
         });
         
-        // 注册消息发送路由 - POST /send
+        // 注册消息发送路由 - POST /send (使用OOP包裹器)
         server.Post("/send", [](const httplib::Request& req, httplib::Response& res) {
-            iuim::services::handleMessageSend(req, res);
+            iuim::services::MessageController::handleMessageSend(req, res);
         });
         
-        // 注册消息历史查询路由 - POST /history
+        // 注册消息历史查询路由 - POST /history (使用OOP包裹器)
         server.Post("/history", [](const httplib::Request& req, httplib::Response& res) {
-            iuim::services::handleMessageHistory(req, res);
+            iuim::services::MessageController::handleMessageHistory(req, res);
         });
         
         // 健康检查接口 - GET /health

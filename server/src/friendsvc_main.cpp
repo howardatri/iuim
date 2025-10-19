@@ -2,6 +2,7 @@
 #include "../include/utils/logger.h"
 #include "../include/utils/database_manager.h"
 #include "../include/services/friend_handler.h"
+#include "../include/services/friend_controller.h"
 #include <iostream>
 
 using namespace iuim::utils;
@@ -10,7 +11,7 @@ using namespace iuim::services;
 int main() {
     try {
         // 初始化日志
-        Logger::getInstance().logInfo("Starting FriendSVC microservice...");
+        Logger::getInstance().logInfo("Starting FriendSVC with Object-Oriented Wrapper...");
         
         // 确保数据库已初始化
         DatabaseManager::getInstance();
@@ -19,16 +20,16 @@ int main() {
         // 创建HTTP服务器
         httplib::Server server;
         
-        // 绑定路由
-        server.Post("/add", handleFriendAdd);
-        server.Post("/delete", handleFriendDelete);
-        server.Post("/query", handleFriendQuery);
+        // 绑定路由 - 使用面向对象的FriendController包裹器
+        server.Post("/add", FriendController::handleFriendAdd);
+        server.Post("/delete", FriendController::handleFriendDelete);
+        server.Post("/query", FriendController::handleFriendQuery);
 
         // 新增：用户搜索功能
-        server.Post("/search", handleUserSearch);
+        server.Post("/search", FriendController::handleUserSearch);
         
         // 启动服务器
-        Logger::getInstance().logInfo("FriendSVC listening on port 50054");
+        Logger::getInstance().logInfo("FriendSVC listening on port 50054 with OOP wrapper");
         server.listen("0.0.0.0", 50054);
         
     } catch (const std::exception& e) {
