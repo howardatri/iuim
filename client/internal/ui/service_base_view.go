@@ -5,6 +5,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 
 	//"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
@@ -95,9 +96,16 @@ func CreateQQServiceView(window fyne.Window, netManager *network.NetworkManager,
 		widget.NewLabel("这里将显示消息内容"),
 	)
 
-	// 创建QQ群组选项卡
+	// ==================== 第六阶段增强：QQ服务差异化集成 ====================
+	// QQ服务：在群组项旁显示管理员标识，点击打开完整管理界面
+	qqGroupHeader := container.NewHBox(
+		widget.NewLabel("QQ群组"),
+		widget.NewLabel("💡 点击群组可查看详情和管理功能"),
+	)
+
+	// 创建QQ群组选项卡，强调管理功能
 	groupTabs := container.NewAppTabs(
-		container.NewTabItem("我的QQ群", groupList.GetContainer()),
+		container.NewTabItem("我的QQ群 👑", groupList.GetContainer()),
 		container.NewTabItem("群组管理", groupManager.GetContainer()),
 	)
 
@@ -106,7 +114,7 @@ func CreateQQServiceView(window fyne.Window, netManager *network.NetworkManager,
 		widget.NewLabel("QQ好友"),
 		friendList.GetContainer(),
 		widget.NewSeparator(),
-		widget.NewLabel("QQ群组"),
+		qqGroupHeader,
 		groupTabs,
 		statusLabel,
 	)
@@ -133,10 +141,20 @@ func CreateWeChatServiceView(window fyne.Window, netManager *network.NetworkMana
 	groupManager := NewGroupManager(window, netManager, userID, serviceID)
 	groupList := NewGroupList(window, netManager, userID, serviceID)
 
-	// 创建通讯录内容，包含好友和群组
+	// ==================== 第六阶段增强：微信服务差异化集成 ====================
+	// 微信服务：为群主显示特殊的管理入口，普通成员显示基本信息
+	wechatGroupHeader := container.NewVBox(
+		widget.NewLabel("微信群聊"),
+		widget.NewLabel("💬 点击群聊查看详情，群主可进行管理"),
+	)
+
+	// 创建通讯录内容，包含好友和群组，强调角色差异
 	contactsTabs := container.NewAppTabs(
 		container.NewTabItem("微信好友", friendList.GetContainer()),
-		container.NewTabItem("微信群聊", groupList.GetContainer()),
+		container.NewTabItem("微信群聊 🏠", container.NewVBox(
+			wechatGroupHeader,
+			groupList.GetContainer(),
+		)),
 		container.NewTabItem("群组管理", groupManager.GetContainer()),
 	)
 
@@ -197,10 +215,20 @@ func CreateWeiboServiceView(window fyne.Window, netManager *network.NetworkManag
 	groupManager := NewGroupManager(window, netManager, userID, serviceID)
 	groupList := NewGroupList(window, netManager, userID, serviceID)
 
-	// 创建关注管理选项卡
+	// ==================== 第六阶段增强：微博服务差异化集成 ====================
+	// 微博服务：根据社区角色显示不同的操作选项
+	weiboGroupHeader := container.NewVBox(
+		widget.NewLabel("微博社区"),
+		widget.NewLabel("🌟 点击超话查看详情，管理员可进行社区管理"),
+	)
+
+	// 创建关注管理选项卡，强调社区角色
 	followTabs := container.NewAppTabs(
 		container.NewTabItem("我的关注", friendList.GetContainer()),
-		container.NewTabItem("微博社区", groupList.GetContainer()),
+		container.NewTabItem("微博社区 🌟", container.NewVBox(
+			weiboGroupHeader,
+			groupList.GetContainer(),
+		)),
 		container.NewTabItem("社区管理", groupManager.GetContainer()),
 	)
 
@@ -240,4 +268,128 @@ func CreateServiceView(window fyne.Window, netManager *network.NetworkManager, u
 		baseView.SetContent(widget.NewLabel(fmt.Sprintf("服务 %s (ID: %d) 的界面尚未实现", serviceName, serviceID)))
 		return baseView.GetContainer()
 	}
+}
+
+// ==================== 第六阶段增强：统一导航入口和权限引导 ====================
+
+// ServiceNavigationManager 服务导航管理器
+type ServiceNavigationManager struct {
+	openWindows map[string]*GroupDetailWindow // 管理打开的群组详情窗口
+	netManager  *network.NetworkManager
+	userID      int
+}
+
+// NewServiceNavigationManager 创建服务导航管理器
+func NewServiceNavigationManager(netManager *network.NetworkManager, userID int) *ServiceNavigationManager {
+	return &ServiceNavigationManager{
+		openWindows: make(map[string]*GroupDetailWindow),
+		netManager:  netManager,
+		userID:      userID,
+	}
+}
+
+// OpenGroupDetailWindow 统一的群组详情窗口打开入口
+func (snm *ServiceNavigationManager) OpenGroupDetailWindow(groupID, serviceID int, parentWindow fyne.Window) {
+	windowKey := fmt.Sprintf("group_%d_%d", groupID, serviceID)
+
+	// 检查窗口是否已经打开
+	if existingWindow, exists := snm.openWindows[windowKey]; exists {
+		// 如果窗口已存在，将其置于前台
+		existingWindow.RequestFocus()
+		return
+	}
+
+	// 创建新的群组详情窗口
+	detailWindow := NewGroupDetailWindow(snm.netManager, snm.userID, groupID, serviceID)
+
+	// 设置窗口关闭回调，从管理器中移除
+	detailWindow.SetCloseCallback(func() {
+		delete(snm.openWindows, windowKey)
+	})
+
+	// 添加到管理器
+	snm.openWindows[windowKey] = detailWindow
+
+	// 显示窗口
+	detailWindow.Show()
+}
+
+// CloseAllGroupWindows 关闭所有群组详情窗口
+func (snm *ServiceNavigationManager) CloseAllGroupWindows() {
+	for _, detailWindow := range snm.openWindows {
+		detailWindow.Close()
+	}
+	snm.openWindows = make(map[string]*GroupDetailWindow)
+}
+
+// GetOpenWindowsCount 获取打开的窗口数量
+func (snm *ServiceNavigationManager) GetOpenWindowsCount() int {
+	return len(snm.openWindows)
+}
+
+// ShowPermissionGuidance 显示权限引导界面
+func ShowPermissionGuidance(userRole int, groupName string, parentWindow fyne.Window) {
+	var title, message string
+
+	switch userRole {
+	case 1: // 群主
+		title = "群主权限"
+		message = fmt.Sprintf("您是群组 '%s' 的群主 👑\n\n可用功能：\n• 群组设置管理\n• 成员角色管理\n• 群组类型变更\n• 所有管理功能", groupName)
+	case 2: // 管理员
+		title = "管理员权限"
+		message = fmt.Sprintf("您是群组 '%s' 的管理员 🛡️\n\n可用功能：\n• 成员管理\n• 基础设置\n• 部分管理功能", groupName)
+	case 3: // 普通成员
+		title = "成员权限"
+		message = fmt.Sprintf("您是群组 '%s' 的成员\n\n可用功能：\n• 查看群组信息\n• 查看成员列表\n• 参与群组活动", groupName)
+	case 4: // 访客
+		title = "访客权限"
+		message = fmt.Sprintf("您当前是群组 '%s' 的访客\n\n可用功能：\n• 查看基本信息\n• 申请加入群组\n\n如需更多权限，请联系群主或管理员", groupName)
+	default:
+		title = "权限说明"
+		message = fmt.Sprintf("无法确定您在群组 '%s' 中的权限\n\n请联系群主或管理员获取帮助", groupName)
+	}
+
+	dialog.ShowInformation(title, message, parentWindow)
+}
+
+// ShowServiceSpecificGuidance 显示服务特定的权限引导
+func ShowServiceSpecificGuidance(serviceID int, userRole int, groupName string, parentWindow fyne.Window) {
+	var servicePrefix string
+
+	switch serviceID {
+	case 1: // QQ
+		servicePrefix = "QQ群"
+	case 2: // 微信
+		servicePrefix = "微信群"
+	case 3: // 微博
+		servicePrefix = "微博超话"
+	default:
+		servicePrefix = "群组"
+	}
+
+	title := fmt.Sprintf("%s权限说明", servicePrefix)
+
+	var message string
+	switch userRole {
+	case 1: // 群主
+		if serviceID == 1 { // QQ
+			message = fmt.Sprintf("您是%s '%s' 的群主 👑\n\nQQ群主特权：\n• 完整的群管理权限\n• 群设置和公告管理\n• 成员踢出和禁言\n• 群等级和头衔管理", servicePrefix, groupName)
+		} else if serviceID == 2 { // 微信
+			message = fmt.Sprintf("您是%s '%s' 的群主 👑\n\n微信群主特权：\n• 群聊设置管理\n• 成员邀请和移除\n• 群公告发布\n• 群名称和头像修改", servicePrefix, groupName)
+		} else if serviceID == 3 { // 微博
+			message = fmt.Sprintf("您是%s '%s' 的主持人 👑\n\n超话主持人特权：\n• 超话设置管理\n• 内容审核和置顶\n• 成员管理\n• 活动组织", servicePrefix, groupName)
+		}
+	case 2: // 管理员
+		if serviceID == 1 { // QQ
+			message = fmt.Sprintf("您是%s '%s' 的管理员 🛡️\n\nQQ群管理员权限：\n• 成员管理\n• 消息管理\n• 部分群设置", servicePrefix, groupName)
+		} else if serviceID == 2 { // 微信
+			message = fmt.Sprintf("您是%s '%s' 的管理员 🛡️\n\n微信群管理员权限：\n• 成员邀请\n• 消息管理\n• 群公告协助", servicePrefix, groupName)
+		} else if serviceID == 3 { // 微博
+			message = fmt.Sprintf("您是%s '%s' 的版主 🛡️\n\n超话版主权限：\n• 内容审核\n• 成员管理\n• 活动协助", servicePrefix, groupName)
+		}
+	default:
+		message = fmt.Sprintf("您在%s '%s' 中的权限有限\n\n如需申请管理权限，请联系群主", servicePrefix, groupName)
+	}
+
+	dialog.ShowInformation(title, message, parentWindow)
 }

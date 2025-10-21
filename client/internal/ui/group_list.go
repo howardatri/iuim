@@ -75,24 +75,15 @@ func NewGroupList(window fyne.Window, netManager *network.NetworkManager, userID
 		},
 	)
 
-	// 点击群组处理
+	// 点击群组处理 - 修改为打开智能详情窗口
 	gl.groupsList.OnSelected = func(id widget.ListItemID) {
 		if id >= len(gl.groups) {
 			return
 		}
 		group := gl.groups[id]
 
-		// 创建右键菜单
-		quitItem := fyne.NewMenuItem("退出群组", func() {
-			gl.quitGroup(group)
-		})
-
-		membersItem := fyne.NewMenuItem("查看成员", func() {
-			gl.showGroupMembers(group)
-		})
-
-		menu := fyne.NewMenu("", quitItem, membersItem)
-		widget.NewPopUpMenu(menu, gl.window.Canvas()).ShowAtPosition(fyne.CurrentApp().Driver().AbsolutePositionForObject(gl.groupsList))
+		// 调用新的点击处理方法
+		gl.onGroupItemClick(group)
 
 		// 取消列表的选中状态，避免一直高亮
 		gl.groupsList.Unselect(id)
@@ -108,11 +99,11 @@ func NewGroupList(window fyne.Window, netManager *network.NetworkManager, userID
 
 	// 创建主容器
 	gl.container = container.NewBorder(
-		buttonBar,      // top
-		nil,            // bottom
-		nil,            // left
-		nil,            // right
-		gl.groupsList,  // center
+		buttonBar,     // top
+		nil,           // bottom
+		nil,           // left
+		nil,           // right
+		gl.groupsList, // center
 	)
 
 	// 初始加载群组列表
@@ -195,8 +186,6 @@ func (gl *GroupList) RefreshGroups() {
 		})
 	}()
 }
-
-
 
 // SetOnRefresh 设置刷新回调方法
 func (gl *GroupList) SetOnRefresh(callback func()) {
@@ -348,8 +337,12 @@ func (gl *GroupList) renderWeChatGroupItem(group map[string]interface{}, obj fyn
 		nameLabel.SetText("未知群组")
 	}
 
-	// 这里可以通过调用GetGroupMembers来获取成员数量，但为了简化先显示固定文本
-	membersLabel.SetText("成员: 查看详情")
+	// 显示实际的成员数量
+	if memberCount, ok := group["member_count"].(float64); ok {
+		membersLabel.SetText(fmt.Sprintf("成员: %d人", int(memberCount)))
+	} else {
+		membersLabel.SetText("成员: 查看详情")
+	}
 
 	// 更新描述
 	descLabel := hbox.Objects[3].(*widget.Label)
@@ -475,7 +468,7 @@ func (gl *GroupList) showGroupMembers(group map[string]interface{}) {
 				// 解析成员列表 - 修复数据格式解析
 				var membersText string
 				var members []interface{}
-				
+
 				// 首先检查data是否为对象格式
 				if dataObj, ok := result["data"].(map[string]interface{}); ok {
 					// 从data对象中获取members数组
@@ -486,7 +479,7 @@ func (gl *GroupList) showGroupMembers(group map[string]interface{}) {
 					// 如果data直接是数组格式
 					members = dataArray
 				}
-				
+
 				// 构建成员列表文本
 				if len(members) == 0 {
 					membersText = "该群组暂无成员"
@@ -506,7 +499,7 @@ func (gl *GroupList) showGroupMembers(group map[string]interface{}) {
 						}
 					}
 				}
-				
+
 				// 如果仍然无法解析，显示调试信息
 				if len(members) == 0 && membersText == "" {
 					log.Printf("Failed to parse members data. Raw data: %+v", result["data"])
@@ -525,4 +518,128 @@ func (gl *GroupList) showGroupMembers(group map[string]interface{}) {
 	} else {
 		dialog.ShowError(fmt.Errorf("无效的群组ID"), gl.window)
 	}
+}
+
+// ==================== 第六阶段增强功能：智能群组详情窗口 ====================
+
+// onGroupItemClick 处理群组项点击事件
+func (gl *GroupList) onGroupItemClick(group map[string]interface{}) {
+	// 获取群组ID
+	groupID, ok := group["group_id"].(float64)
+	if !ok {
+		log.Printf("无效的群组ID: %+v", group)
+		dialog.ShowError(fmt.Errorf("无效的群组ID"), gl.window)
+		return
+	}
+
+	log.Printf("点击群组: ID=%d, ServiceID=%d, UserID=%d", int(groupID), gl.serviceID, gl.userID)
+
+	// 显示加载状态
+	loadingDialog := dialog.NewInformation("加载中", "正在获取群组信息和用户角色...", gl.window)
+	loadingDialog.Show()
+
+	// 在后台获取用户角色，然后打开详情窗口
+	go func() {
+		// 获取当前用户在该群组中的角色
+		roleResult, err := gl.netManager.GetCurrentUserRole(int(groupID), gl.userID, gl.serviceID)
+
+		fyne.Do(func() {
+			loadingDialog.Hide()
+
+			if err != nil {
+				log.Printf("获取用户角色失败: %v", err)
+				// 即使获取角色失败，也可以以访客身份打开窗口
+				gl.openGroupDetailWindow(int(groupID), gl.serviceID)
+				return
+			}
+
+			// 添加调试日志
+			log.Printf("群组列表点击时获取的用户角色响应: %+v", roleResult)
+
+			// 解析角色信息
+			userRole := 4 // 默认为访客
+			if code, ok := roleResult["code"].(float64); ok && code == 0 {
+				if data, ok := roleResult["data"].(map[string]interface{}); ok {
+					if roleType, ok := data["role_type"].(float64); ok {
+						userRole = int(roleType)
+					}
+				}
+			}
+
+			log.Printf("群组列表点击时解析的用户角色: %d", userRole)
+
+			// 根据角色添加视觉反馈
+			gl.addRoleVisualFeedback(group, userRole)
+
+			// 打开智能详情窗口
+			gl.openGroupDetailWindow(int(groupID), gl.serviceID)
+		})
+	}()
+}
+
+// openGroupDetailWindow 打开群组详情窗口
+func (gl *GroupList) openGroupDetailWindow(groupID, serviceID int) {
+	log.Printf("打开群组详情窗口: GroupID=%d, ServiceID=%d", groupID, serviceID)
+
+	// 创建新的群组详情窗口
+	detailWindow := NewGroupDetailWindow(gl.netManager, gl.userID, groupID, serviceID)
+
+	// 显示窗口
+	detailWindow.Show()
+
+	log.Printf("群组详情窗口已打开")
+}
+
+// addRoleVisualFeedback 根据用户角色添加视觉反馈
+func (gl *GroupList) addRoleVisualFeedback(group map[string]interface{}, userRole int) {
+	// 这里可以根据角色为群组项添加不同的视觉标识
+	// 由于Fyne的限制，我们通过日志记录角色信息
+	roleName := gl.getRoleDisplayName(userRole)
+	groupName := "未知群组"
+	if name, ok := group["group_name"].(string); ok {
+		groupName = name
+	}
+
+	log.Printf("群组 '%s' 中的角色: %s", groupName, roleName)
+
+	// 可以在这里实现更复杂的视觉反馈，比如：
+	// - 为群主显示金色边框或皇冠图标
+	// - 为管理员显示银色边框或盾牌图标
+	// - 为普通成员显示默认样式
+	// 由于当前的列表渲染机制限制，暂时通过日志记录
+}
+
+// getRoleDisplayName 获取角色显示名称
+func (gl *GroupList) getRoleDisplayName(roleType int) string {
+	switch roleType {
+	case 1:
+		return "群主 👑"
+	case 2:
+		return "管理员 🛡️"
+	case 3:
+		return "成员"
+	case 4:
+		return "访客"
+	default:
+		return "未知角色"
+	}
+}
+
+// 保留原有的右键菜单功能作为备用
+func (gl *GroupList) showGroupContextMenu(group map[string]interface{}) {
+	// 创建右键菜单
+	quitItem := fyne.NewMenuItem("退出群组", func() {
+		gl.quitGroup(group)
+	})
+
+	membersItem := fyne.NewMenuItem("查看成员", func() {
+		gl.showGroupMembers(group)
+	})
+
+	detailItem := fyne.NewMenuItem("群组详情", func() {
+		gl.onGroupItemClick(group)
+	})
+
+	menu := fyne.NewMenu("", detailItem, membersItem, quitItem)
+	widget.NewPopUpMenu(menu, gl.window.Canvas()).ShowAtPosition(fyne.CurrentApp().Driver().AbsolutePositionForObject(gl.groupsList))
 }

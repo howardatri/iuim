@@ -208,17 +208,21 @@ IUIM系统采用CGS（客户端-网关-服务端）架构，由以下主要组�
 | username | TEXT | 用户名，唯一 |
 | password | TEXT | 密码（加密存储） |
 | nickname | TEXT | 昵称 |
+| email | TEXT | 邮箱 |
 | birth_date | TEXT | 出生日期 |
-| register_time | TEXT | 注册时间 |
 | location | TEXT | 所在地 |
-| avatar | TEXT | 头像路径 |
+| qq_id | TEXT | QQ号，唯一 |
+| wechat_id | TEXT | 微信号，唯一 |
+| register_time | TIMESTAMP | 注册时间，默认当前时间 |
+| created_at | TIMESTAMP | 创建时间，默认当前时间 |
+| updated_at | TIMESTAMP | 更新时间，默认当前时间 |
 
 #### 4.2.2 服务表（Services）
 
 | 字段名 | 类型 | 描述 |
 |--------|------|------|
-| id | INTEGER | 主键，自增 |
-| name | TEXT | 服务名称（QQ、微信、微博等） |
+| id | INTEGER | 主键 |
+| name | TEXT | 服务名称（QQ、微信等），唯一 |
 | description | TEXT | 服务描述 |
 
 #### 4.2.3 用户服务表（UserServices）
@@ -229,8 +233,9 @@ IUIM系统采用CGS（客户端-网关-服务端）架构，由以下主要组�
 | user_id | INTEGER | 用户ID，外键 |
 | service_id | INTEGER | 服务ID，外键 |
 | service_user_id | TEXT | 该服务下的用户ID |
-| activated | INTEGER | 是否激活（0-未激活，1-已激活） |
+| activated | INTEGER | 是否激活（0-未激活，1-已激活），默认0 |
 | activate_time | TEXT | 激活时间 |
+| created_at | TIMESTAMP | 创建时间，默认当前时间 |
 
 #### 4.2.4 好友表（Friends）
 
@@ -241,19 +246,18 @@ IUIM系统采用CGS（客户端-网关-服务端）架构，由以下主要组�
 | friend_id | INTEGER | 好友ID，外键 |
 | service_id | INTEGER | 服务ID，外键 |
 | remark | TEXT | 备注 |
-| add_time | TEXT | 添加时间 |
+| add_time | TIMESTAMP | 添加时间，默认当前时间 |
 
 #### 4.2.5 群组表（Groups）
 
 | 字段名 | 类型 | 描述 |
 |--------|------|------|
-| id | INTEGER | 主键，自增 |
-| group_id | INTEGER | 群号 |
+| group_id | INTEGER | 主键，自增 |
+| group_name | TEXT | 群名称 |
+| creator_id | INTEGER | 创建者ID，外键 |
 | service_id | INTEGER | 服务ID，外键 |
-| name | TEXT | 群名称 |
 | description | TEXT | 群描述 |
-| create_time | TEXT | 创建时间 |
-| owner_id | INTEGER | 群主ID，外键 |
+| create_time | TIMESTAMP | 创建时间，默认当前时间 |
 
 #### 4.2.6 群成员表（GroupMembers）
 
@@ -262,11 +266,36 @@ IUIM系统采用CGS（客户端-网关-服务端）架构，由以下主要组�
 | id | INTEGER | 主键，自增 |
 | group_id | INTEGER | 群ID，外键 |
 | user_id | INTEGER | 用户ID，外键 |
-| role | INTEGER | 角色（0-普通成员，1-管理员，2-群主） |
-| join_time | TEXT | 加入时间 |
-| nickname | TEXT | 群内昵称 |
+| service_id | INTEGER | 服务ID，外键 |
+| join_type | INTEGER | 加入类型（0-申请加入QQ群，1-推荐加入微信群） |
+| join_time | TIMESTAMP | 加入时间，默认当前时间 |
 
-#### 4.2.7 消息表（Messages）
+#### 4.2.7 群组设置表（GroupSettings）
+
+| 字段名 | 类型 | 描述 |
+|--------|------|------|
+| id | INTEGER | 主键，自增 |
+| group_id | INTEGER | 群ID |
+| service_id | INTEGER | 服务ID |
+| group_type | INTEGER | 群类型 |
+| join_method | INTEGER | 加入方式 |
+| allow_subgroups | INTEGER | 是否允许子群，默认0 |
+| admin_system | INTEGER | 管理员制度，默认0 |
+| max_members | INTEGER | 最大成员数，默认500 |
+| created_at | TIMESTAMP | 创建时间，默认当前时间 |
+
+#### 4.2.8 群成员角色表（GroupMemberRoles）
+
+| 字段名 | 类型 | 描述 |
+|--------|------|------|
+| id | INTEGER | 主键，自增 |
+| group_id | INTEGER | 群ID |
+| user_id | INTEGER | 用户ID |
+| service_id | INTEGER | 服务ID |
+| role_type | INTEGER | 角色类型 |
+| assigned_time | TIMESTAMP | 分配时间，默认当前时间 |
+
+#### 4.2.9 消息表（Messages）
 
 | 字段名 | 类型 | 描述 |
 |--------|------|------|
@@ -275,9 +304,9 @@ IUIM系统采用CGS（客户端-网关-服务端）架构，由以下主要组�
 | receiver_id | INTEGER | 接收者ID，外键（用户ID或群ID） |
 | type | INTEGER | 消息类型（0-私聊，1-群聊） |
 | content | TEXT | 消息内容 |
-| send_time | TEXT | 发送时间 |
+| send_time | TEXT | 发送时间，默认当前时间 |
 | service_id | INTEGER | 服务ID，外键 |
-| status | INTEGER | 状态（0-未读，1-已读） |
+| status | INTEGER | 状态（0-未读，1-已读），默认0 |
 
 ### 4.3 接口设计
 

@@ -133,5 +133,182 @@ void handleLogin(const httplib::Request& req, httplib::Response& res) {
     res.set_content(responseJson.dump(), "application/json");
 }
 
+void handleUpdateProfile(const httplib::Request& req, httplib::Response& res) {
+    Logger::getInstance().logInfo("Handling update profile request");
+    
+    json responseJson;
+    
+    try {
+        json requestJson = json::parse(req.body);
+        
+        // 验证必要字段
+        if (!requestJson.contains("user_id")) {
+            responseJson = {
+                {"code", 400},
+                {"message", "缺少必要字段: user_id"}
+            };
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int user_id = requestJson["user_id"];
+        std::string nickname = requestJson.value("nickname", "");
+        std::string birth_date = requestJson.value("birth_date", "");
+        std::string location = requestJson.value("location", "");
+        
+        // 检查是否有字段需要更新
+        if (nickname.empty() && birth_date.empty() && location.empty()) {
+            responseJson = {
+                {"code", 400},
+                {"message", "至少需要提供一个要更新的字段"}
+            };
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        // 更新用户资料
+        bool success = DatabaseManager::getInstance().updateUserProfile(user_id, nickname, birth_date, location);
+        
+        if (success) {
+            Logger::getInstance().logInfo("User profile updated successfully: user_id=" + std::to_string(user_id));
+            responseJson = {
+                {"code", 0},
+                {"message", "用户资料更新成功"},
+                {"data", {
+                    {"user_id", user_id}
+                }}
+            };
+        } else {
+            Logger::getInstance().logError("Failed to update user profile: user_id=" + std::to_string(user_id));
+            responseJson = {
+                {"code", 500},
+                {"message", "更新用户资料失败"}
+            };
+        }
+    } catch (const std::exception& e) {
+        Logger::getInstance().logError(std::string("Update profile error: ") + e.what());
+        responseJson = {
+            {"code", 500},
+            {"message", std::string("服务器错误: ") + e.what()}
+        };
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+void handleBindWechat(const httplib::Request& req, httplib::Response& res) {
+    Logger::getInstance().logInfo("Handling bind wechat request");
+    
+    json responseJson;
+    
+    try {
+        json requestJson = json::parse(req.body);
+        
+        // 验证必要字段
+        if (!requestJson.contains("user_id") || !requestJson.contains("wechat_id")) {
+            responseJson = {
+                {"code", 400},
+                {"message", "缺少必要字段: user_id, wechat_id"}
+            };
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int user_id = requestJson["user_id"];
+        std::string wechat_id = requestJson["wechat_id"];
+        
+        // 检查微信ID是否可用
+        if (!DatabaseManager::getInstance().isWechatIdAvailable(wechat_id)) {
+            responseJson = {
+                {"code", 409},
+                {"message", "微信ID已被其他用户绑定"}
+            };
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        // 绑定微信ID
+        bool success = DatabaseManager::getInstance().bindWechatId(user_id, wechat_id);
+        
+        if (success) {
+            Logger::getInstance().logInfo("Wechat ID bound successfully: user_id=" + std::to_string(user_id) + ", wechat_id=" + wechat_id);
+            responseJson = {
+                {"code", 0},
+                {"message", "微信绑定成功"},
+                {"data", {
+                    {"user_id", user_id},
+                    {"wechat_id", wechat_id}
+                }}
+            };
+        } else {
+            Logger::getInstance().logError("Failed to bind wechat ID: user_id=" + std::to_string(user_id));
+            responseJson = {
+                {"code", 500},
+                {"message", "绑定微信失败"}
+            };
+        }
+    } catch (const std::exception& e) {
+        Logger::getInstance().logError(std::string("Bind wechat error: ") + e.what());
+        responseJson = {
+            {"code", 500},
+            {"message", std::string("服务器错误: ") + e.what()}
+        };
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+void handleGetProfile(const httplib::Request& req, httplib::Response& res) {
+    Logger::getInstance().logInfo("Handling get profile request");
+    
+    json responseJson;
+    
+    try {
+        json requestJson = json::parse(req.body);
+        
+        // 验证必要字段
+        if (!requestJson.contains("user_id")) {
+            responseJson = {
+                {"code", 400},
+                {"message", "缺少必要字段: user_id"}
+            };
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int user_id = requestJson["user_id"];
+        
+        // 获取用户完整资料
+        std::string profileJson;
+        bool success = DatabaseManager::getInstance().getUserFullProfile(user_id, profileJson);
+        
+        if (success) {
+            Logger::getInstance().logInfo("User profile retrieved successfully: user_id=" + std::to_string(user_id));
+            
+            // 解析数据库返回的JSON并重新包装
+            json profileData = json::parse(profileJson);
+            responseJson = {
+                {"code", 0},
+                {"message", "获取用户资料成功"},
+                {"data", profileData}
+            };
+        } else {
+            Logger::getInstance().logError("Failed to get user profile: user_id=" + std::to_string(user_id));
+            responseJson = {
+                {"code", 404},
+                {"message", "用户不存在或获取资料失败"}
+            };
+        }
+    } catch (const std::exception& e) {
+        Logger::getInstance().logError(std::string("Get profile error: ") + e.what());
+        responseJson = {
+            {"code", 500},
+            {"message", std::string("服务器错误: ") + e.what()}
+        };
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
 } // namespace services
 } // namespace iuim

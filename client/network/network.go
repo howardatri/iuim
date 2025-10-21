@@ -74,6 +74,478 @@ func (m *NetworkManager) Register(userInfo map[string]string) (map[string]interf
 	return result, nil
 }
 
+// UpdateProfile 更新用户资料
+func (m *NetworkManager) UpdateProfile(userID int, profileData map[string]interface{}) (map[string]interface{}, error) {
+	// 构建更新资料命令
+	updateData := map[string]interface{}{
+		"user_id": userID,
+	}
+
+	// 合并资料数据
+	for key, value := range profileData {
+		updateData[key] = value
+	}
+
+	jsonData, err := json.Marshal(updateData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化更新资料数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("update_profile %s", string(jsonData))
+	log.Printf("发送更新资料命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: update_profile_resp {JSON数据}
+	if !strings.HasPrefix(resp, "update_profile_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "update_profile_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// BindWechat 绑定微信账号
+func (m *NetworkManager) BindWechat(userID int, wechatID string) (map[string]interface{}, error) {
+	// 构建绑定微信命令
+	bindData := map[string]interface{}{
+		"user_id":   userID,
+		"wechat_id": wechatID,
+	}
+
+	jsonData, err := json.Marshal(bindData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化绑定微信数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("bind_wechat %s", string(jsonData))
+	log.Printf("发送绑定微信命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: bind_wechat_resp {JSON数据}
+	if !strings.HasPrefix(resp, "bind_wechat_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "bind_wechat_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// GetProfile 获取用户资料
+func (m *NetworkManager) GetProfile(userID int) (map[string]interface{}, error) {
+	// 构建获取资料命令
+	profileData := map[string]interface{}{
+		"user_id": userID,
+	}
+
+	jsonData, err := json.Marshal(profileData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化获取资料数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("get_profile %s", string(jsonData))
+	log.Printf("发送获取资料命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: get_profile_resp {JSON数据}
+	if !strings.HasPrefix(resp, "get_profile_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "get_profile_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// ==================== 第六阶段增强群组功能网络方法 ====================
+
+// GetGroupSettings 获取群组设置
+func (m *NetworkManager) GetGroupSettings(groupID, serviceID int) (map[string]interface{}, error) {
+	// 构建获取群组设置命令
+	settingsData := map[string]interface{}{
+		"group_id":   groupID,
+		"service_id": serviceID,
+	}
+
+	jsonData, err := json.Marshal(settingsData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化获取群组设置数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("get_group_settings %s", string(jsonData))
+	log.Printf("发送获取群组设置命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: get_group_settings_resp {JSON数据}
+	if !strings.HasPrefix(resp, "get_group_settings_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "get_group_settings_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// UpdateGroupSettings 更新群组设置
+func (m *NetworkManager) UpdateGroupSettings(groupID, serviceID int, settings map[string]interface{}) (map[string]interface{}, error) {
+	// 构建更新群组设置命令
+	updateData := map[string]interface{}{
+		"group_id":   groupID,
+		"service_id": serviceID,
+		"settings":   settings,
+	}
+
+	jsonData, err := json.Marshal(updateData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化更新群组设置数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("update_group_settings %s", string(jsonData))
+	log.Printf("发送更新群组设置命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: update_group_settings_resp {JSON数据}
+	if !strings.HasPrefix(resp, "update_group_settings_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "update_group_settings_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// ChangeGroupType 变换群组类型
+func (m *NetworkManager) ChangeGroupType(groupID, sourceServiceID, targetServiceID int) (map[string]interface{}, error) {
+	// 构建变换群组类型命令
+	changeData := map[string]interface{}{
+		"group_id":          groupID,
+		"service_id":        sourceServiceID, // 修复：使用service_id而不是source_service_id
+		"target_service_id": targetServiceID,
+	}
+
+	jsonData, err := json.Marshal(changeData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化变换群组类型数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("change_group_type %s", string(jsonData))
+	log.Printf("发送变换群组类型命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: change_group_type_resp {JSON数据}
+	if !strings.HasPrefix(resp, "change_group_type_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "change_group_type_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// SetMemberRole 设置成员角色
+func (m *NetworkManager) SetMemberRole(groupID, userID, serviceID, roleType int) (map[string]interface{}, error) {
+	// 构建设置成员角色命令
+	roleData := map[string]interface{}{
+		"group_id":   groupID,
+		"user_id":    userID,
+		"service_id": serviceID,
+		"role_type":  roleType,
+	}
+
+	jsonData, err := json.Marshal(roleData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化设置成员角色数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("set_member_role %s", string(jsonData))
+	log.Printf("发送设置成员角色命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: set_member_role_resp {JSON数据}
+	if !strings.HasPrefix(resp, "set_member_role_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "set_member_role_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// GetMemberRoles 获取成员角色列表
+func (m *NetworkManager) GetMemberRoles(groupID, serviceID int) (map[string]interface{}, error) {
+	// 构建获取成员角色列表命令
+	rolesData := map[string]interface{}{
+		"group_id":   groupID,
+		"service_id": serviceID,
+	}
+
+	jsonData, err := json.Marshal(rolesData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化获取成员角色列表数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("get_member_roles %s", string(jsonData))
+	log.Printf("发送获取成员角色列表命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: get_member_roles_resp {JSON数据}
+	if !strings.HasPrefix(resp, "get_member_roles_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "get_member_roles_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// GetCurrentUserRole 获取当前用户在群组中的角色 - 修复版本
+func (m *NetworkManager) GetCurrentUserRole(groupID, userID, serviceID int) (map[string]interface{}, error) {
+	// 构建获取成员角色命令
+	roleData := map[string]interface{}{
+		"group_id":   groupID,
+		"user_id":    userID,
+		"service_id": serviceID,
+	}
+
+	jsonData, err := json.Marshal(roleData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化获取成员角色数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("get_current_user_role %s", string(jsonData))
+	log.Printf("发送获取当前用户角色命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: get_current_user_role_resp {JSON数据}
+	if !strings.HasPrefix(resp, "get_current_user_role_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "get_current_user_role_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	// 检查响应状态码
+	if code, ok := result["code"].(float64); ok && code != 0 {
+		message := "未知错误"
+		if msg, ok := result["message"].(string); ok {
+			message = msg
+		}
+		return nil, fmt.Errorf("获取成员角色失败: %s", message)
+	}
+
+	// 直接使用服务器返回的角色信息，不再尝试从成员列表查找
+	log.Printf("成功获取用户角色响应: %+v", result)
+
+	// 返回原始响应，让调用方处理
+	return result, nil
+}
+
+// ApplyJoinGroup QQ群申请加入
+func (m *NetworkManager) ApplyJoinGroup(groupID, userID, serviceID int, reason string) (map[string]interface{}, error) {
+	// 构建申请加入群组命令
+	applyData := map[string]interface{}{
+		"group_id":   groupID,
+		"user_id":    userID,
+		"service_id": serviceID,
+		"reason":     reason,
+	}
+
+	jsonData, err := json.Marshal(applyData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化申请加入群组数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("apply_join_group %s", string(jsonData))
+	log.Printf("发送申请加入群组命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: apply_join_group_resp {JSON数据}
+	if !strings.HasPrefix(resp, "apply_join_group_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "apply_join_group_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// InviteJoinGroup 微信群邀请加入
+func (m *NetworkManager) InviteJoinGroup(groupID, inviterID, inviteeID, serviceID int) (map[string]interface{}, error) {
+	// 构建邀请加入群组命令
+	inviteData := map[string]interface{}{
+		"group_id":   groupID,
+		"inviter_id": inviterID,
+		"invitee_id": inviteeID,
+		"service_id": serviceID,
+	}
+
+	jsonData, err := json.Marshal(inviteData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化邀请加入群组数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("invite_join_group %s", string(jsonData))
+	log.Printf("发送邀请加入群组命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: invite_join_group_resp {JSON数据}
+	if !strings.HasPrefix(resp, "invite_join_group_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "invite_join_group_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// FreeJoinTopic 微博超话自由加入
+func (m *NetworkManager) FreeJoinTopic(groupID, userID, serviceID int) (map[string]interface{}, error) {
+	// 构建自由加入超话命令
+	joinData := map[string]interface{}{
+		"group_id":   groupID,
+		"user_id":    userID,
+		"service_id": serviceID,
+	}
+
+	jsonData, err := json.Marshal(joinData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化自由加入超话数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("free_join_topic %s", string(jsonData))
+	log.Printf("发送自由加入超话命令: %s", cmd)
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: free_join_topic_resp {JSON数据}
+	if !strings.HasPrefix(resp, "free_join_topic_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "free_join_topic_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	return result, nil
+}
+
 // QueryFriends 查询好友列表
 func (m *NetworkManager) QueryFriends(userID, serviceID int) (map[string]interface{}, error) {
 	// 构建查询命令

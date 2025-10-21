@@ -17,6 +17,9 @@ public:
     DatabaseManager(const DatabaseManager&) = delete;
     void operator=(const DatabaseManager&) = delete;
     
+    // 获取数据库连接（供其他管理器使用）
+    sqlite3* getDatabase() const;
+    
     // 注册新用户
     bool registerUser(const std::string& username, const std::string& password, 
                       const std::string& nickname, const std::string& email);
@@ -57,6 +60,15 @@ public:
     bool createGroup(int creatorId, const std::string& groupName, int serviceId, const std::string& description);
     bool isUserInGroup(int userId, int groupId, int serviceId);
     bool getUserGroups(int userId, int serviceId, std::string& jsonResult);
+    
+    // 用户资料管理相关方法
+    bool updateUserProfile(int user_id, const std::string& nickname, const std::string& birth_date, const std::string& location);
+    bool bindWechatId(int user_id, const std::string& wechat_id);
+    bool unbindWechatId(int user_id);
+    bool setQqId(int user_id, const std::string& qq_id);
+    bool getUserFullProfile(int user_id, std::string& jsonResult);
+    bool isWechatIdAvailable(const std::string& wechat_id);
+    bool isQqIdAvailable(const std::string& qq_id);
 
 private:
     // 私有构造函数和析构函数

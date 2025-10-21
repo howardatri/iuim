@@ -28,6 +28,17 @@ public:
     static void handleGroupQuit(const httplib::Request& req, httplib::Response& res);
     static void handleGroupMembers(const httplib::Request& req, httplib::Response& res);
     static void handleGroupList(const httplib::Request& req, httplib::Response& res);
+    
+    // 增强群组功能的静态包裹器方法
+    static void handleGetGroupSettings(const httplib::Request& req, httplib::Response& res);
+    static void handleUpdateGroupSettings(const httplib::Request& req, httplib::Response& res);
+    static void handleChangeGroupType(const httplib::Request& req, httplib::Response& res);
+    static void handleSetMemberRole(const httplib::Request& req, httplib::Response& res);
+    static void handleGetMemberRoles(const httplib::Request& req, httplib::Response& res);
+    static void handleApplyJoinGroup(const httplib::Request& req, httplib::Response& res);
+    static void handleInviteJoinGroup(const httplib::Request& req, httplib::Response& res);
+    static void handleFreeJoinTopic(const httplib::Request& req, httplib::Response& res);
+    static void handleGetCurrentUserRole(const httplib::Request& req, httplib::Response& res);
 
 private:
     std::shared_ptr<IGroupService> groupService_;
