@@ -1,5 +1,5 @@
 @echo off
-echo Building GroupSVC...
+echo Building Enhanced GroupSVC...
 
 if not exist "build" mkdir build
 
@@ -15,6 +15,7 @@ g++ -std=c++17 ^
     src/models/wechatgroupZHY.cpp ^
     src/models/weibogroupZHY.cpp ^
     src/utils/database_manager.cpp ^
+    src/utils/group_db_manager.cpp ^
     src/utils/logger.cpp ^
     -I./include ^
     -I../third_party ^
@@ -24,7 +25,7 @@ g++ -std=c++17 ^
     -o build/groupsvc.exe
 
 if %ERRORLEVEL% EQU 0 (
-    echo Build successful! Executable created at build/groupsvc.exe
+    echo Enhanced GroupSVC build successful! Executable created at build/groupsvc.exe
 ) else (
-    echo Build failed with error code %ERRORLEVEL%
+    echo Enhanced GroupSVC build failed with error code %ERRORLEVEL%
 )

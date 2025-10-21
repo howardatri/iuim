@@ -23,6 +23,23 @@ void handleGroupCreate(const httplib::Request& req, httplib::Response& res);
 // 处理获取用户群组列表请求
 void handleGroupList(const httplib::Request& req, httplib::Response& res);
 
+// 增强群组功能处理函数
+
+// 群组设置管理
+void handleGetGroupSettings(const httplib::Request& req, httplib::Response& res);
+void handleUpdateGroupSettings(const httplib::Request& req, httplib::Response& res);
+void handleChangeGroupType(const httplib::Request& req, httplib::Response& res);
+
+// 成员角色管理
+void handleSetMemberRole(const httplib::Request& req, httplib::Response& res);
+void handleGetMemberRoles(const httplib::Request& req, httplib::Response& res);
+void handleGetCurrentUserRole(const httplib::Request& req, httplib::Response& res);
+
+// 特色功能接口
+void handleApplyJoinGroup(const httplib::Request& req, httplib::Response& res);
+void handleInviteJoinGroup(const httplib::Request& req, httplib::Response& res);
+void handleFreeJoinTopic(const httplib::Request& req, httplib::Response& res);
+
 } // namespace services
 } // namespace iuim
 

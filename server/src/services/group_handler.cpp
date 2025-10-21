@@ -1,5 +1,6 @@
 #include "../../include/services/group_handler.h"
 #include "../../include/utils/database_manager.h"
+#include "../../include/utils/group_db_manager.h"
 #include "../../include/utils/logger.h"
 #include "nlohmann/json.hpp"
 
@@ -225,6 +226,400 @@ void handleGroupList(const httplib::Request& req, httplib::Response& res) {
         responseJson["code"] = 500;
         responseJson["message"] = std::string("Error: ") + e.what();
         iuim::utils::Logger::getInstance().logError("Error in handleGroupList: " + std::string(e.what()));
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+// 增强群组功能处理函数实现
+
+// 处理获取群组设置请求
+void handleGetGroupSettings(const httplib::Request& req, httplib::Response& res) {
+    nlohmann::json responseJson;
+    
+    try {
+        // 解析请求体
+        auto requestJson = nlohmann::json::parse(req.body);
+        
+        // 验证必要参数
+        if (!requestJson.contains("group_id") || !requestJson.contains("service_id")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int groupId = requestJson["group_id"];
+        int serviceId = requestJson["service_id"];
+        
+        // 调用GroupDBManager执行获取群组设置操作
+        std::string jsonResult;
+        bool success = iuim::utils::GroupDBManager::getInstance().getGroupSettings(groupId, serviceId, jsonResult);
+        
+        if (success) {
+            auto settingsData = nlohmann::json::parse(jsonResult);
+            responseJson["code"] = 0;
+            responseJson["message"] = "success";
+            responseJson["data"] = settingsData;
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Failed to get group settings";
+        }
+    } catch (const std::exception& e) {
+        responseJson["code"] = 500;
+        responseJson["message"] = std::string("Error: ") + e.what();
+        iuim::utils::Logger::getInstance().logError("Error in handleGetGroupSettings: " + std::string(e.what()));
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+// 处理更新群组设置请求
+void handleUpdateGroupSettings(const httplib::Request& req, httplib::Response& res) {
+    nlohmann::json responseJson;
+    
+    try {
+        // 解析请求体
+        auto requestJson = nlohmann::json::parse(req.body);
+        
+        // 验证必要参数
+        if (!requestJson.contains("group_id") || !requestJson.contains("service_id") ||
+            !requestJson.contains("group_type") || !requestJson.contains("join_method") ||
+            !requestJson.contains("allow_subgroups") || !requestJson.contains("admin_system") ||
+            !requestJson.contains("max_members")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int groupId = requestJson["group_id"];
+        int serviceId = requestJson["service_id"];
+        int groupType = requestJson["group_type"];
+        int joinMethod = requestJson["join_method"];
+        int allowSubgroups = requestJson["allow_subgroups"];
+        int adminSystem = requestJson["admin_system"];
+        int maxMembers = requestJson["max_members"];
+        
+        // 调用GroupDBManager执行更新群组设置操作
+        bool success = iuim::utils::GroupDBManager::getInstance().updateGroupSettings(
+            groupId, serviceId, groupType, joinMethod, allowSubgroups, adminSystem, maxMembers);
+        
+        if (success) {
+            responseJson["code"] = 0;
+            responseJson["message"] = "success";
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Failed to update group settings";
+        }
+    } catch (const std::exception& e) {
+        responseJson["code"] = 500;
+        responseJson["message"] = std::string("Error: ") + e.what();
+        iuim::utils::Logger::getInstance().logError("Error in handleUpdateGroupSettings: " + std::string(e.what()));
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+// 处理动态变换群组类型请求
+void handleChangeGroupType(const httplib::Request& req, httplib::Response& res) {
+    nlohmann::json responseJson;
+    
+    try {
+        // 解析请求体
+        auto requestJson = nlohmann::json::parse(req.body);
+        
+        // 验证必要参数
+        if (!requestJson.contains("group_id") || !requestJson.contains("service_id") ||
+            !requestJson.contains("target_service_id")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int groupId = requestJson["group_id"];
+        int serviceId = requestJson["service_id"];
+        int targetServiceId = requestJson["target_service_id"];
+        
+        // 调用GroupDBManager执行变换群组类型操作
+        bool success = iuim::utils::GroupDBManager::getInstance().changeGroupType(groupId, serviceId, targetServiceId);
+        
+        if (success) {
+            // 获取新的群组设置
+            std::string jsonResult;
+            if (iuim::utils::GroupDBManager::getInstance().getGroupSettings(groupId, serviceId, jsonResult)) {
+                auto settingsData = nlohmann::json::parse(jsonResult);
+                responseJson["code"] = 0;
+                responseJson["message"] = "success";
+                responseJson["data"] = {
+                    {"new_group_type", settingsData["group_type"]},
+                    {"new_join_method", settingsData["join_method"]},
+                    {"new_allow_subgroups", settingsData["allow_subgroups"]}
+                };
+            } else {
+                responseJson["code"] = 0;
+                responseJson["message"] = "success";
+            }
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Failed to change group type";
+        }
+    } catch (const std::exception& e) {
+        responseJson["code"] = 500;
+        responseJson["message"] = std::string("Error: ") + e.what();
+        iuim::utils::Logger::getInstance().logError("Error in handleChangeGroupType: " + std::string(e.what()));
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+// 处理设置成员角色请求
+void handleSetMemberRole(const httplib::Request& req, httplib::Response& res) {
+    nlohmann::json responseJson;
+    
+    try {
+        // 解析请求体
+        auto requestJson = nlohmann::json::parse(req.body);
+        
+        // 验证必要参数
+        if (!requestJson.contains("group_id") || !requestJson.contains("user_id") ||
+            !requestJson.contains("service_id") || !requestJson.contains("role_type")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int groupId = requestJson["group_id"];
+        int userId = requestJson["user_id"];
+        int serviceId = requestJson["service_id"];
+        int roleType = requestJson["role_type"];
+        
+        // 验证角色类型
+        if (roleType < 0 || roleType > 2) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Invalid role_type, must be 0 (member), 1 (admin), or 2 (owner)";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        // 调用GroupDBManager执行设置成员角色操作
+        bool success = iuim::utils::GroupDBManager::getInstance().setMemberRole(groupId, userId, serviceId, roleType);
+        
+        if (success) {
+            responseJson["code"] = 0;
+            responseJson["message"] = "success";
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Failed to set member role";
+        }
+    } catch (const std::exception& e) {
+        responseJson["code"] = 500;
+        responseJson["message"] = std::string("Error: ") + e.what();
+        iuim::utils::Logger::getInstance().logError("Error in handleSetMemberRole: " + std::string(e.what()));
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+// 处理获取成员角色请求
+void handleGetMemberRoles(const httplib::Request& req, httplib::Response& res) {
+    nlohmann::json responseJson;
+    
+    try {
+        // 解析请求体
+        auto requestJson = nlohmann::json::parse(req.body);
+        
+        // 验证必要参数
+        if (!requestJson.contains("group_id") || !requestJson.contains("service_id")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int groupId = requestJson["group_id"];
+        int serviceId = requestJson["service_id"];
+        
+        // 调用GroupDBManager执行获取成员角色操作
+        std::string jsonResult;
+        bool success = iuim::utils::GroupDBManager::getInstance().getMemberRoles(groupId, serviceId, jsonResult);
+        
+        if (success) {
+            auto rolesData = nlohmann::json::parse(jsonResult);
+            responseJson["code"] = 0;
+            responseJson["message"] = "success";
+            responseJson["data"] = rolesData;
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Failed to get member roles";
+        }
+    } catch (const std::exception& e) {
+        responseJson["code"] = 500;
+        responseJson["message"] = std::string("Error: ") + e.what();
+        iuim::utils::Logger::getInstance().logError("Error in handleGetMemberRoles: " + std::string(e.what()));
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+// 处理获取当前用户角色请求
+void handleGetCurrentUserRole(const httplib::Request& req, httplib::Response& res) {
+    nlohmann::json responseJson;
+    
+    try {
+        // 解析请求体
+        auto requestJson = nlohmann::json::parse(req.body);
+        
+        // 验证必要参数
+        if (!requestJson.contains("group_id") || !requestJson.contains("user_id")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters: group_id and user_id";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int groupId = requestJson["group_id"];
+        int userId = requestJson["user_id"];
+        
+        // 调用GroupDBManager获取当前用户角色
+        std::string roleResult;
+        bool success = iuim::utils::GroupDBManager::getInstance().getCurrentUserRole(groupId, userId, roleResult);
+        
+        if (success) {
+            // 注意：这里roleResult已经是完整的JSON字符串，我们直接返回
+            res.set_content(roleResult, "application/json");
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Failed to get user role";
+            res.set_content(responseJson.dump(), "application/json");
+        }
+    } catch (const std::exception& e) {
+        responseJson["code"] = 500;
+        responseJson["message"] = std::string("Error: ") + e.what();
+        iuim::utils::Logger::getInstance().logError("Error in handleGetCurrentUserRole: " + std::string(e.what()));
+        res.set_content(responseJson.dump(), "application/json");
+    }
+}
+
+// 处理QQ群申请加入请求
+void handleApplyJoinGroup(const httplib::Request& req, httplib::Response& res) {
+    nlohmann::json responseJson;
+    
+    try {
+        // 解析请求体
+        auto requestJson = nlohmann::json::parse(req.body);
+        
+        // 验证必要参数
+        if (!requestJson.contains("group_id") || !requestJson.contains("user_id") ||
+            !requestJson.contains("service_id") || !requestJson.contains("apply_reason")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int groupId = requestJson["group_id"];
+        int userId = requestJson["user_id"];
+        int serviceId = requestJson["service_id"];
+        std::string applyReason = requestJson["apply_reason"];
+        
+        // 调用GroupDBManager执行申请加入群组操作
+        bool success = iuim::utils::GroupDBManager::getInstance().applyJoinGroup(groupId, userId, serviceId, applyReason);
+        
+        if (success) {
+            responseJson["code"] = 0;
+            responseJson["message"] = "申请已提交，等待审核";
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Failed to apply join group";
+        }
+    } catch (const std::exception& e) {
+        responseJson["code"] = 500;
+        responseJson["message"] = std::string("Error: ") + e.what();
+        iuim::utils::Logger::getInstance().logError("Error in handleApplyJoinGroup: " + std::string(e.what()));
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+// 处理微信群邀请加入请求
+void handleInviteJoinGroup(const httplib::Request& req, httplib::Response& res) {
+    nlohmann::json responseJson;
+    
+    try {
+        // 解析请求体
+        auto requestJson = nlohmann::json::parse(req.body);
+        
+        // 验证必要参数
+        if (!requestJson.contains("group_id") || !requestJson.contains("inviter_id") ||
+            !requestJson.contains("invitee_id") || !requestJson.contains("service_id")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int groupId = requestJson["group_id"];
+        int inviterId = requestJson["inviter_id"];
+        int inviteeId = requestJson["invitee_id"];
+        int serviceId = requestJson["service_id"];
+        
+        // 调用GroupDBManager执行邀请加入群组操作
+        bool success = iuim::utils::GroupDBManager::getInstance().inviteJoinGroup(groupId, inviterId, inviteeId, serviceId);
+        
+        if (success) {
+            responseJson["code"] = 0;
+            responseJson["message"] = "邀请已发送";
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Failed to invite join group";
+        }
+    } catch (const std::exception& e) {
+        responseJson["code"] = 500;
+        responseJson["message"] = std::string("Error: ") + e.what();
+        iuim::utils::Logger::getInstance().logError("Error in handleInviteJoinGroup: " + std::string(e.what()));
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+// 处理微博超话自由加入请求
+void handleFreeJoinTopic(const httplib::Request& req, httplib::Response& res) {
+    nlohmann::json responseJson;
+    
+    try {
+        // 解析请求体
+        auto requestJson = nlohmann::json::parse(req.body);
+        
+        // 验证必要参数
+        if (!requestJson.contains("group_id") || !requestJson.contains("user_id") ||
+            !requestJson.contains("service_id")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int groupId = requestJson["group_id"];
+        int userId = requestJson["user_id"];
+        int serviceId = requestJson["service_id"];
+        
+        // 调用GroupDBManager执行自由加入超话操作
+        bool success = iuim::utils::GroupDBManager::getInstance().freeJoinTopic(groupId, userId, serviceId);
+        
+        if (success) {
+            responseJson["code"] = 0;
+            responseJson["message"] = "成功加入超话";
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Failed to free join topic";
+        }
+    } catch (const std::exception& e) {
+        responseJson["code"] = 500;
+        responseJson["message"] = std::string("Error: ") + e.what();
+        iuim::utils::Logger::getInstance().logError("Error in handleFreeJoinTopic: " + std::string(e.what()));
     }
     
     res.set_content(responseJson.dump(), "application/json");

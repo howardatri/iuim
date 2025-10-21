@@ -41,7 +41,23 @@ void UserService::start() {
     // 注册用户登录接口 (使用OOP包裹器)
     server_->Post("/login", UserController::handleLogin);
     
+    // 用户资料更新接口
+    server_->Post("/update_profile", [](const httplib::Request& req, httplib::Response& res) {
+        iuim::services::handleUpdateProfile(req, res);
+    });
+    
+    // 微信绑定接口
+    server_->Post("/bind_wechat", [](const httplib::Request& req, httplib::Response& res) {
+        iuim::services::handleBindWechat(req, res);
+    });
+    
+    // 获取用户资料接口
+    server_->Post("/get_profile", [](const httplib::Request& req, httplib::Response& res) {
+        iuim::services::handleGetProfile(req, res);
+    });
+    
     std::cout << "UserService starting on port 50051..." << std::endl;
+    std::cout << "Registered endpoints: /health-check, /register, /login, /update_profile, /bind_wechat, /get_profile" << std::endl;
     server_->listen("0.0.0.0", 50051);
 }
 

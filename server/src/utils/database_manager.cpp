@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 namespace iuim {
 namespace utils {
@@ -141,6 +142,11 @@ bool DatabaseManager::createUserTable() {
         "password TEXT NOT NULL,"
         "nickname TEXT,"
         "email TEXT,"
+        "birth_date TEXT,"
+        "location TEXT,"
+        "qq_id TEXT UNIQUE,"
+        "wechat_id TEXT UNIQUE,"
+        "register_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         ");";
@@ -1002,6 +1008,51 @@ bool DatabaseManager::createGroupTables() {
         return false;
     }
     
+    // 创建群组设置表 (GroupSettings)
+    const char* createGroupSettingsSQL = R"(
+        CREATE TABLE IF NOT EXISTS GroupSettings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            service_id INTEGER NOT NULL,
+            group_type INTEGER NOT NULL,
+            join_method INTEGER NOT NULL,
+            allow_subgroups INTEGER DEFAULT 0,
+            admin_system INTEGER DEFAULT 0,
+            max_members INTEGER DEFAULT 500,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(group_id, service_id)
+        );
+    )";
+    
+    if (sqlite3_exec(db_, createGroupSettingsSQL, nullptr, nullptr, &errMsg) != SQLITE_OK) {
+        std::string error = "Failed to create GroupSettings table: ";
+        error += errMsg;
+        sqlite3_free(errMsg);
+        Logger::getInstance().logError(error);
+        return false;
+    }
+    
+    // 创建群组成员角色表 (GroupMemberRoles)
+    const char* createGroupMemberRolesSQL = R"(
+        CREATE TABLE IF NOT EXISTS GroupMemberRoles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            service_id INTEGER NOT NULL,
+            role_type INTEGER NOT NULL,
+            assigned_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(group_id, user_id, service_id)
+        );
+    )";
+    
+    if (sqlite3_exec(db_, createGroupMemberRolesSQL, nullptr, nullptr, &errMsg) != SQLITE_OK) {
+        std::string error = "Failed to create GroupMemberRoles table: ";
+        error += errMsg;
+        sqlite3_free(errMsg);
+        Logger::getInstance().logError(error);
+        return false;
+    }
+    
     Logger::getInstance().logInfo("Group tables created successfully");
     return true;
 }
@@ -1073,6 +1124,47 @@ bool DatabaseManager::joinGroup(int userId, int groupId, int serviceId, int join
                                      " joined group " + std::to_string(groupId) + 
                                      " for service " + std::to_string(serviceId) + 
                                      " with join type " + std::to_string(joinType));
+        
+        // 设置成员角色 - 需要确定角色类型
+        int roleType = 0; // 默认为普通成员
+        
+        // 检查是否是群组创建者
+        const char* creatorSql = "SELECT creator_id FROM Groups WHERE group_id = ?";
+        sqlite3_stmt* creatorStmt;
+        if (sqlite3_prepare_v2(db_, creatorSql, -1, &creatorStmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_int(creatorStmt, 1, groupId);
+            if (sqlite3_step(creatorStmt) == SQLITE_ROW) {
+                int creatorId = sqlite3_column_int(creatorStmt, 0);
+                if (creatorId == userId) {
+                    roleType = 2; // 群主 (修正：0=普通成员, 1=管理员, 2=群主)
+                }
+            }
+            sqlite3_finalize(creatorStmt);
+        }
+        
+        // 设置成员角色到GroupMemberRoles表
+        const char* roleSql = R"(
+            INSERT OR REPLACE INTO GroupMemberRoles 
+            (group_id, user_id, service_id, role_type) 
+            VALUES (?, ?, ?, ?)
+        )";
+        
+        sqlite3_stmt* roleStmt;
+        if (sqlite3_prepare_v2(db_, roleSql, -1, &roleStmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_int(roleStmt, 1, groupId);
+            sqlite3_bind_int(roleStmt, 2, userId);
+            sqlite3_bind_int(roleStmt, 3, serviceId);
+            sqlite3_bind_int(roleStmt, 4, roleType);
+            
+            if (sqlite3_step(roleStmt) == SQLITE_DONE) {
+                Logger::getInstance().logInfo("Set member role for user_id: " + std::to_string(userId) + 
+                                            " in group_id: " + std::to_string(groupId) + 
+                                            " to role_type: " + std::to_string(roleType));
+            } else {
+                Logger::getInstance().logError("Failed to set member role: " + std::string(sqlite3_errmsg(db_)));
+            }
+            sqlite3_finalize(roleStmt);
+        }
     } else {
         Logger::getInstance().logError("Failed to join group: " + std::to_string(groupId) + 
                                       " for user " + std::to_string(userId));
@@ -1109,6 +1201,23 @@ bool DatabaseManager::quitGroup(int userId, int groupId, int serviceId) {
         Logger::getInstance().logInfo("User " + std::to_string(userId) + 
                                      " quit group " + std::to_string(groupId) + 
                                      " for service " + std::to_string(serviceId));
+        
+        // 同时删除角色记录
+        const char* roleSql = "DELETE FROM GroupMemberRoles WHERE user_id = ? AND group_id = ? AND service_id = ?;";
+        sqlite3_stmt* roleStmt;
+        if (sqlite3_prepare_v2(db_, roleSql, -1, &roleStmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_int(roleStmt, 1, userId);
+            sqlite3_bind_int(roleStmt, 2, groupId);
+            sqlite3_bind_int(roleStmt, 3, serviceId);
+            
+            if (sqlite3_step(roleStmt) == SQLITE_DONE) {
+                Logger::getInstance().logInfo("Removed member role for user_id: " + std::to_string(userId) + 
+                                            " from group_id: " + std::to_string(groupId));
+            } else {
+                Logger::getInstance().logError("Failed to remove member role: " + std::string(sqlite3_errmsg(db_)));
+            }
+            sqlite3_finalize(roleStmt);
+        }
     } else {
         Logger::getInstance().logError("Failed to quit group: " + std::to_string(groupId) + 
                                       " for user " + std::to_string(userId));
@@ -1257,6 +1366,269 @@ bool DatabaseManager::getUserGroups(int userId, int serviceId, std::string& json
     Logger::getInstance().logInfo("User groups queried successfully: user=" + std::to_string(userId) + 
                                  ", service=" + std::to_string(serviceId));
     return true;
+}
+
+// 用户资料管理相关方法实现
+
+bool DatabaseManager::updateUserProfile(int user_id, const std::string& nickname, const std::string& birth_date, const std::string& location) {
+    if (!db_) return false;
+    
+    std::string sql = "UPDATE Users SET updated_at = CURRENT_TIMESTAMP";
+    std::vector<std::string> params;
+    
+    if (!nickname.empty()) {
+        sql += ", nickname = ?";
+        params.push_back(nickname);
+    }
+    if (!birth_date.empty()) {
+        sql += ", birth_date = ?";
+        params.push_back(birth_date);
+    }
+    if (!location.empty()) {
+        sql += ", location = ?";
+        params.push_back(location);
+    }
+    
+    sql += " WHERE id = ?";
+    params.push_back(std::to_string(user_id));
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare update user profile statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    for (size_t i = 0; i < params.size(); ++i) {
+        sqlite3_bind_text(stmt, i + 1, params[i].c_str(), -1, SQLITE_STATIC);
+    }
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to update user profile: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("User profile updated successfully: user_id=" + std::to_string(user_id));
+    return true;
+}
+
+bool DatabaseManager::bindWechatId(int user_id, const std::string& wechat_id) {
+    if (!db_) return false;
+    
+    // 首先检查微信ID是否可用
+    if (!isWechatIdAvailable(wechat_id)) {
+        Logger::getInstance().logError("Wechat ID already exists: " + wechat_id);
+        return false;
+    }
+    
+    const char* sql = "UPDATE Users SET wechat_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare bind wechat statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_text(stmt, 1, wechat_id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, user_id);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to bind wechat ID: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Wechat ID bound successfully: user_id=" + std::to_string(user_id) + ", wechat_id=" + wechat_id);
+    return true;
+}
+
+bool DatabaseManager::unbindWechatId(int user_id) {
+    if (!db_) return false;
+    
+    const char* sql = "UPDATE Users SET wechat_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare unbind wechat statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, user_id);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to unbind wechat ID: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Wechat ID unbound successfully: user_id=" + std::to_string(user_id));
+    return true;
+}
+
+bool DatabaseManager::setQqId(int user_id, const std::string& qq_id) {
+    if (!db_) return false;
+    
+    // 首先检查QQ ID是否可用
+    if (!isQqIdAvailable(qq_id)) {
+        Logger::getInstance().logError("QQ ID already exists: " + qq_id);
+        return false;
+    }
+    
+    const char* sql = "UPDATE Users SET qq_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare set QQ ID statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_text(stmt, 1, qq_id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, user_id);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to set QQ ID: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("QQ ID set successfully: user_id=" + std::to_string(user_id) + ", qq_id=" + qq_id);
+    return true;
+}
+
+bool DatabaseManager::getUserFullProfile(int user_id, std::string& jsonResult) {
+    if (!db_) return false;
+    
+    // 获取用户基本信息
+    const char* userSql = 
+        "SELECT id, username, nickname, email, birth_date, location, qq_id, wechat_id, register_time, created_at, updated_at "
+        "FROM Users WHERE id = ?";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, userSql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare get user profile statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, user_id);
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        Logger::getInstance().logError("User not found: " + std::to_string(user_id));
+        return false;
+    }
+    
+    // 构建用户基本信息JSON
+    jsonResult = "{";
+    jsonResult += "\"user_id\":" + std::to_string(sqlite3_column_int(stmt, 0)) + ",";
+    
+    const char* username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+    jsonResult += "\"username\":\"" + (username ? escapeJsonString(std::string(username)) : "") + "\",";
+    
+    const char* nickname = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+    jsonResult += "\"nickname\":\"" + (nickname ? escapeJsonString(std::string(nickname)) : "") + "\",";
+    
+    const char* email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+    jsonResult += "\"email\":\"" + (email ? escapeJsonString(std::string(email)) : "") + "\",";
+    
+    const char* birth_date = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+    jsonResult += "\"birth_date\":\"" + (birth_date ? std::string(birth_date) : "") + "\",";
+    
+    const char* location = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+    jsonResult += "\"location\":\"" + (location ? escapeJsonString(std::string(location)) : "") + "\",";
+    
+    const char* qq_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+    jsonResult += "\"qq_id\":\"" + (qq_id ? std::string(qq_id) : "") + "\",";
+    
+    const char* wechat_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
+    jsonResult += "\"wechat_id\":\"" + (wechat_id ? std::string(wechat_id) : "") + "\",";
+    
+    const char* register_time = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
+    jsonResult += "\"register_time\":\"" + (register_time ? std::string(register_time) : "") + "\",";
+    
+    const char* created_at = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 9));
+    jsonResult += "\"created_at\":\"" + (created_at ? std::string(created_at) : "") + "\",";
+    
+    const char* updated_at = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
+    jsonResult += "\"updated_at\":\"" + (updated_at ? std::string(updated_at) : "") + "\"";
+    
+    sqlite3_finalize(stmt);
+    
+    // 获取用户服务列表
+    std::string servicesJson;
+    if (queryUserServices(user_id, servicesJson)) {
+        jsonResult += ",\"services\":" + servicesJson;
+    } else {
+        jsonResult += ",\"services\":[]";
+    }
+    
+    jsonResult += "}";
+    
+    Logger::getInstance().logInfo("User full profile retrieved successfully: user_id=" + std::to_string(user_id));
+    return true;
+}
+
+bool DatabaseManager::isWechatIdAvailable(const std::string& wechat_id) {
+    if (!db_) return false;
+    
+    const char* sql = "SELECT COUNT(*) FROM Users WHERE wechat_id = ?";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare check wechat ID statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_text(stmt, 1, wechat_id.c_str(), -1, SQLITE_STATIC);
+    
+    rc = sqlite3_step(stmt);
+    bool available = false;
+    if (rc == SQLITE_ROW) {
+        int count = sqlite3_column_int(stmt, 0);
+        available = (count == 0);
+    }
+    
+    sqlite3_finalize(stmt);
+    return available;
+}
+
+bool DatabaseManager::isQqIdAvailable(const std::string& qq_id) {
+    if (!db_) return false;
+    
+    const char* sql = "SELECT COUNT(*) FROM Users WHERE qq_id = ?";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare check QQ ID statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_text(stmt, 1, qq_id.c_str(), -1, SQLITE_STATIC);
+    
+    rc = sqlite3_step(stmt);
+    bool available = false;
+    if (rc == SQLITE_ROW) {
+        int count = sqlite3_column_int(stmt, 0);
+        available = (count == 0);
+    }
+    
+    sqlite3_finalize(stmt);
+    return available;
+}
+
+// 获取数据库连接（供其他管理器使用）
+sqlite3* DatabaseManager::getDatabase() const {
+    return db_;
 }
 
 } // namespace utils

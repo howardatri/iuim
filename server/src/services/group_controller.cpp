@@ -1,6 +1,7 @@
 #include "../../include/services/group_controller.h"
 #include "../../include/services/group_repository.h"
 #include "../../include/services/group_service.h"
+#include "../../include/services/group_handler.h"
 #include "../../include/utils/logger.h"
 
 namespace iuim {
@@ -190,6 +191,52 @@ void GroupController::handleGroupMembers(const httplib::Request& req, httplib::R
 
 void GroupController::handleGroupList(const httplib::Request& req, httplib::Response& res) {
     getInstance().handleGetUserGroups(req, res);
+}
+
+// 增强群组功能的静态包裹器方法实现
+void GroupController::handleGetGroupSettings(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("GroupController::handleGetGroupSettings - OOP包裹器被调用");
+    iuim::services::handleGetGroupSettings(req, res);
+}
+
+void GroupController::handleUpdateGroupSettings(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("GroupController::handleUpdateGroupSettings - OOP包裹器被调用");
+    iuim::services::handleUpdateGroupSettings(req, res);
+}
+
+void GroupController::handleChangeGroupType(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("GroupController::handleChangeGroupType - OOP包裹器被调用");
+    iuim::services::handleChangeGroupType(req, res);
+}
+
+void GroupController::handleSetMemberRole(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("GroupController::handleSetMemberRole - OOP包裹器被调用");
+    iuim::services::handleSetMemberRole(req, res);
+}
+
+void GroupController::handleGetMemberRoles(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("GroupController::handleGetMemberRoles - OOP包裹器被调用");
+    iuim::services::handleGetMemberRoles(req, res);
+}
+
+void GroupController::handleApplyJoinGroup(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("GroupController::handleApplyJoinGroup - OOP包裹器被调用");
+    iuim::services::handleApplyJoinGroup(req, res);
+}
+
+void GroupController::handleInviteJoinGroup(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("GroupController::handleInviteJoinGroup - OOP包裹器被调用");
+    iuim::services::handleInviteJoinGroup(req, res);
+}
+
+void GroupController::handleFreeJoinTopic(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("GroupController::handleFreeJoinTopic - OOP包裹器被调用");
+    iuim::services::handleFreeJoinTopic(req, res);
+}
+
+void GroupController::handleGetCurrentUserRole(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("GroupController::handleGetCurrentUserRole - OOP包裹器被调用");
+    iuim::services::handleGetCurrentUserRole(req, res);
 }
 
 // 辅助方法实现
