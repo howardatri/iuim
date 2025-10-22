@@ -394,9 +394,10 @@ bool DatabaseManager::createSocialTables() {
 bool DatabaseManager::activateUserService(int userId, int serviceId) {
     if (!db_) return false;
     
+    // 使用 INSERT OR REPLACE 确保 activated=1
     const char* sql = 
-        "INSERT OR IGNORE INTO UserServices (user_id, service_id) "
-        "VALUES (?, ?);";
+        "INSERT OR REPLACE INTO UserServices (user_id, service_id, activated, activate_time) "
+        "VALUES (?, ?, 1, CURRENT_TIMESTAMP);";
     
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
@@ -416,6 +417,8 @@ bool DatabaseManager::activateUserService(int userId, int serviceId) {
         return false;
     }
     
+    Logger::getInstance().logInfo("Service activated successfully: user=" + std::to_string(userId) + 
+                                 ", service=" + std::to_string(serviceId));
     return true;
 }
 
@@ -742,6 +745,188 @@ bool DatabaseManager::searchUsers(const std::string& keyword, std::string& jsonR
     sqlite3_finalize(stmt);
     
     return rc == SQLITE_DONE;
+}
+
+bool DatabaseManager::debugCheckTargetServiceUsers(int targetServiceId, int excludeUserId) {
+    if (!db_) return false;
+    
+    const char* sql = 
+        "SELECT u.id, u.username, u.nickname, us.activated "
+        "FROM Users u "
+        "LEFT JOIN UserServices us ON u.id = us.user_id AND us.service_id = ? "
+        "WHERE u.id != ? "
+        "ORDER BY u.id;";
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Debug check failed: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, targetServiceId);
+    sqlite3_bind_int(stmt, 2, excludeUserId);
+    
+    Logger::getInstance().logInfo("=== Debug: Checking users for service " + std::to_string(targetServiceId) + " ===");
+    
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int userId = sqlite3_column_int(stmt, 0);
+        const char* username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* nickname = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        int activated = sqlite3_column_int(stmt, 3);
+        
+        Logger::getInstance().logInfo("User: id=" + std::to_string(userId) + 
+                                     ", username=" + (username ? std::string(username) : "NULL") +
+                                     ", nickname=" + (nickname ? std::string(nickname) : "NULL") +
+                                     ", activated=" + std::to_string(activated));
+    }
+    
+    sqlite3_finalize(stmt);
+    Logger::getInstance().logInfo("=== Debug check completed ===");
+    return true;
+}
+
+// 查询共同好友
+bool DatabaseManager::queryCommonFriends(int userId, int friendId, int serviceId, std::string& jsonResult) {
+    if (!db_) return false;
+    
+    const char* sql = 
+        "SELECT DISTINCT u.id, u.nickname, u.username, f1.remark as user_remark, f2.remark as friend_remark "
+        "FROM Friends f1 "
+        "JOIN Friends f2 ON f1.friend_id = f2.friend_id "
+        "JOIN Users u ON f1.friend_id = u.id "
+        "WHERE f1.user_id = ? AND f1.service_id = ? "
+        "AND f2.user_id = ? AND f2.service_id = ? "
+        "ORDER BY u.nickname;";
+
+    Logger::getInstance().logInfo("Querying common friends - user_id: " + std::to_string(userId) + 
+                                 ", friend_id: " + std::to_string(friendId) + 
+                                 ", service_id: " + std::to_string(serviceId));
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare query common friends statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, userId);
+    sqlite3_bind_int(stmt, 2, serviceId);
+    sqlite3_bind_int(stmt, 3, friendId);
+    sqlite3_bind_int(stmt, 4, serviceId);
+    
+    jsonResult = "[";
+    bool first = true;
+    
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int commonFriendId = sqlite3_column_int(stmt, 0);
+        const char* nickname = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char* userRemark = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        const char* friendRemark = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        
+        if (!first) {
+            jsonResult += ",";
+        }
+        
+        jsonResult += "{";
+        jsonResult += "\"common_friend_id\":" + std::to_string(commonFriendId) + ",";
+        jsonResult += "\"nickname\":\"" + (nickname ? std::string(nickname) : "") + "\",";
+        jsonResult += "\"username\":\"" + (username ? std::string(username) : "") + "\",";
+        jsonResult += "\"user_remark\":\"" + (userRemark ? std::string(userRemark) : "") + "\",";
+        jsonResult += "\"friend_remark\":\"" + (friendRemark ? std::string(friendRemark) : "") + "\"";
+        jsonResult += "}";
+        
+        first = false;
+    }
+    
+    jsonResult += "]";
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to query common friends: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Common friends queried successfully");
+    return true;
+}
+
+bool DatabaseManager::queryCrossServiceFriends(int userId, int currentServiceId, int targetServiceId, std::string& jsonResult) {
+    if (!db_) return false;
+    
+    // 正确的SQL：查找在目标服务中已经是好友，但在当前服务中还不是好友的用户
+    const char* sql = 
+        "SELECT DISTINCT u.id, u.username, u.nickname, u.email "
+        "FROM Users u "
+        "JOIN UserServices us ON u.id = us.user_id "
+        "JOIN Friends f_target ON u.id = f_target.friend_id "  // 在目标服务中是好友
+        "WHERE us.service_id = ? "      // 目标服务ID
+        "AND us.activated = 1 "         // 已激活该服务
+        "AND f_target.user_id = ? "     // 当前用户在目标服务中的好友关系
+        "AND f_target.service_id = ? "  // 目标服务
+        "AND u.id != ? "                // 排除自己
+        "AND u.id NOT IN ("
+        "    SELECT friend_id FROM Friends "
+        "    WHERE user_id = ? AND service_id = ?"  // 排除在当前服务中已经是好友的用户
+        ") "
+        "ORDER BY u.nickname "
+        "LIMIT 50;";
+
+    Logger::getInstance().logInfo("Querying cross service friends - user_id: " + std::to_string(userId) + 
+                                 ", current_service: " + std::to_string(currentServiceId) + 
+                                 ", target_service: " + std::to_string(targetServiceId));
+    
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        Logger::getInstance().logError("Failed to prepare query cross service friends statement: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    // 绑定参数
+    sqlite3_bind_int(stmt, 1, targetServiceId);   // 目标服务ID (UserServices)
+    sqlite3_bind_int(stmt, 2, userId);            // 当前用户ID (Friends user_id)
+    sqlite3_bind_int(stmt, 3, targetServiceId);   // 目标服务ID (Friends service_id)
+    sqlite3_bind_int(stmt, 4, userId);            // 排除自己
+    sqlite3_bind_int(stmt, 5, userId);            // 排除在当前服务中已经是好友的用户
+    sqlite3_bind_int(stmt, 6, currentServiceId);  // 当前服务ID
+    
+    jsonResult = "[";
+    bool first = true;
+    int resultCount = 0;
+    
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int friendId = sqlite3_column_int(stmt, 0);
+        const char* username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* nickname = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char* email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        
+        if (!first) {
+            jsonResult += ",";
+        }
+        
+        jsonResult += "{";
+        jsonResult += "\"friend_id\":" + std::to_string(friendId) + ",";
+        jsonResult += "\"username\":\"" + (username ? std::string(username) : "") + "\",";
+        jsonResult += "\"nickname\":\"" + (nickname ? std::string(nickname) : "") + "\",";
+        jsonResult += "\"email\":\"" + (email ? std::string(email) : "") + "\"";
+        jsonResult += "}";
+        
+        first = false;
+        resultCount++;
+    }
+    
+    jsonResult += "]";
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        Logger::getInstance().logError("Failed to query cross service friends: " + std::string(sqlite3_errmsg(db_)));
+        return false;
+    }
+    
+    Logger::getInstance().logInfo("Cross service friends queried successfully, found " + std::to_string(resultCount) + " results");
+    return true;
 }
 
 // 创建消息相关表

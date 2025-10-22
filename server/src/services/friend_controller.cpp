@@ -29,5 +29,17 @@ void FriendController::handleUserSearch(const httplib::Request& req, httplib::Re
     iuim::services::handleUserSearch(req, res);
 }
 
+void FriendController::handleQueryCommonFriends(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("FriendController::handleQueryCommonFriends - OOP wrapper called");
+    // 调用原有的处理函数
+    iuim::services::handleQueryCommonFriends(req, res);
+}
+
+void FriendController::handleQueryCrossServiceFriends(const httplib::Request& req, httplib::Response& res) {
+    iuim::utils::Logger::getInstance().logInfo("FriendController::handleQueryCrossServiceFriends - OOP wrapper called");
+    // 调用原有的处理函数
+    iuim::services::handleQueryCrossServiceFriends(req, res);
+}
+
 } // namespace services
 } // namespace iuim

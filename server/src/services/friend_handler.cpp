@@ -90,15 +90,19 @@ void handleFriendDelete(const httplib::Request& req, httplib::Response& res) {
         int friendId = requestJson["friend_id"].get<int>();
         int serviceId = requestJson["service_id"].get<int>();
         
-        // 调用数据库管理器删除好友
-        bool success = DatabaseManager::getInstance().deleteFriend(userId, friendId, serviceId);
+        // 调用数据库管理器删除好友（双向删除）
+        bool success1 = DatabaseManager::getInstance().deleteFriend(userId, friendId, serviceId);
+        bool success2 = DatabaseManager::getInstance().deleteFriend(friendId, userId, serviceId);
         
-        if (success) {
+        if (success1 && success2) {
             responseJson["code"] = 0;
             responseJson["message"] = "Friend deleted successfully";
+            Logger::getInstance().logInfo("Bidirectional friend relationship deleted successfully");
         } else {
             responseJson["code"] = 500;
             responseJson["message"] = "Failed to delete friend";
+            Logger::getInstance().logError("Failed to delete bidirectional friend relationship - success1: " + 
+                                         std::to_string(success1) + ", success2: " + std::to_string(success2));
         }
     } catch (const std::exception& e) {
         Logger::getInstance().logError("Error in handleFriendDelete: " + std::string(e.what()));
@@ -202,6 +206,113 @@ void handleUserSearch(const httplib::Request& req, httplib::Response& res) {
         };
         res.set_content(response.dump(), "application/json");
     }
+}
+
+void handleQueryCommonFriends(const httplib::Request& req, httplib::Response& res) {
+    Logger::getInstance().logInfo("Received query common friends request");
+    
+    json responseJson;
+    
+    try {
+        // 解析请求体
+        json requestJson = json::parse(req.body);
+        
+        // 验证请求参数
+        if (!requestJson.contains("user_id") || !requestJson.contains("friend_id") || 
+            !requestJson.contains("service_id")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int userId = requestJson["user_id"].get<int>();
+        int friendId = requestJson["friend_id"].get<int>();
+        int serviceId = requestJson["service_id"].get<int>();
+
+        Logger::getInstance().logInfo("Querying common friends - user_id: " + std::to_string(userId) + 
+                                     ", friend_id: " + std::to_string(friendId) + 
+                                     ", service_id: " + std::to_string(serviceId));
+
+        // 调用数据库管理器查询共同好友
+        std::string commonFriendsResult;
+        bool success = DatabaseManager::getInstance().queryCommonFriends(userId, friendId, serviceId, commonFriendsResult);
+        
+        if (success) {
+            responseJson["code"] = 0;
+            responseJson["message"] = "success";
+            responseJson["data"] = json::parse(commonFriendsResult);
+            Logger::getInstance().logInfo("Common friends query successful");
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Query common friends failed";
+            Logger::getInstance().logError("Common friends query failed");
+        }
+        
+    } catch (const std::exception& e) {
+        Logger::getInstance().logError("Query common friends error: " + std::string(e.what()));
+        
+        responseJson["code"] = 400;
+        responseJson["message"] = "Invalid request format";
+        responseJson["error"] = e.what();
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
+}
+
+void handleQueryCrossServiceFriends(const httplib::Request& req, httplib::Response& res) {
+    Logger::getInstance().logInfo("Received query cross service friends request");
+    
+    json responseJson;
+    
+    try {
+        // 解析请求体
+        json requestJson = json::parse(req.body);
+        
+        // 验证请求参数
+        if (!requestJson.contains("user_id") || !requestJson.contains("current_service_id") || 
+            !requestJson.contains("target_service_id")) {
+            responseJson["code"] = 400;
+            responseJson["message"] = "Missing required parameters";
+            res.set_content(responseJson.dump(), "application/json");
+            return;
+        }
+        
+        int userId = requestJson["user_id"].get<int>();
+        int currentServiceId = requestJson["current_service_id"].get<int>();
+        int targetServiceId = requestJson["target_service_id"].get<int>();
+
+        Logger::getInstance().logInfo("Querying cross service friends - user_id: " + std::to_string(userId) + 
+                                     ", current_service_id: " + std::to_string(currentServiceId) + 
+                                     ", target_service_id: " + std::to_string(targetServiceId));
+
+        // 添加调试信息
+        DatabaseManager::getInstance().debugCheckTargetServiceUsers(targetServiceId, userId);
+
+        // 调用数据库管理器查询跨服务好友推荐
+        std::string crossServiceFriendsResult;
+        bool success = DatabaseManager::getInstance().queryCrossServiceFriends(userId, currentServiceId, targetServiceId, crossServiceFriendsResult);
+        
+        if (success) {
+            responseJson["code"] = 0;
+            responseJson["message"] = "success";
+            responseJson["data"] = json::parse(crossServiceFriendsResult);
+            Logger::getInstance().logInfo("Cross service friends query successful");
+        } else {
+            responseJson["code"] = 500;
+            responseJson["message"] = "Query cross service friends failed";
+            Logger::getInstance().logError("Cross service friends query failed");
+        }
+        
+    } catch (const std::exception& e) {
+        Logger::getInstance().logError("Query cross service friends error: " + std::string(e.what()));
+        
+        responseJson["code"] = 400;
+        responseJson["message"] = "Invalid request format";
+        responseJson["error"] = e.what();
+    }
+    
+    res.set_content(responseJson.dump(), "application/json");
 }
 
 } // namespace services

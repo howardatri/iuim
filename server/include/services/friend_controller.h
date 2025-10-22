@@ -17,6 +17,10 @@ public:
     static void handleFriendDelete(const httplib::Request& req, httplib::Response& res);
     static void handleFriendQuery(const httplib::Request& req, httplib::Response& res);
     static void handleUserSearch(const httplib::Request& req, httplib::Response& res);
+    
+    // 新增：跨服务好友功能
+    static void handleQueryCommonFriends(const httplib::Request& req, httplib::Response& res);
+    static void handleQueryCrossServiceFriends(const httplib::Request& req, httplib::Response& res);
 
 private:
     // 私有构造函数，防止实例化

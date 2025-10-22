@@ -61,8 +61,21 @@ type GroupDetailWindow struct {
 
 // NewGroupDetailWindow 创建新的群组详情窗口
 func NewGroupDetailWindow(netManager *network.NetworkManager, userID, groupID, serviceID int) *GroupDetailWindow {
+	// 根据服务类型设置窗口标题
+	var windowTitle string
+	switch serviceID {
+	case 1:
+		windowTitle = "QQ群详情"
+	case 2:
+		windowTitle = "微信群详情"
+	case 3:
+		windowTitle = "微博超话详情"
+	default:
+		windowTitle = "群组详情"
+	}
+
 	// 创建新窗口
-	window := fyne.CurrentApp().NewWindow("群组详情")
+	window := fyne.CurrentApp().NewWindow(windowTitle)
 	window.Resize(fyne.NewSize(800, 600))
 
 	gdw := &GroupDetailWindow{
@@ -115,18 +128,51 @@ func (gdw *GroupDetailWindow) setupUI() {
 
 // createInfoTab 创建群组信息标签页
 func (gdw *GroupDetailWindow) createInfoTab() {
+	// 根据服务类型设置标签和文本
+	var tabName, nameLabel, descLabel, creatorLabel, joinButtonText, quitButtonText string
+	switch gdw.serviceID {
+	case 1: // QQ群
+		tabName = "群组信息"
+		nameLabel = "群名称: 加载中..."
+		descLabel = "群介绍: 加载中..."
+		creatorLabel = "群主: 加载中..."
+		joinButtonText = "申请加群"
+		quitButtonText = "退出群聊"
+	case 2: // 微信群
+		tabName = "群聊信息"
+		nameLabel = "群聊名称: 加载中..."
+		descLabel = "群公告: 加载中..."
+		creatorLabel = "群主: 加载中..."
+		joinButtonText = "加入群聊"
+		quitButtonText = "退出群聊"
+	case 3: // 微博超话
+		tabName = "超话信息"
+		nameLabel = "超话名称: 加载中..."
+		descLabel = "超话简介: 加载中..."
+		creatorLabel = "话题主持人: 加载中..."
+		joinButtonText = "关注超话"
+		quitButtonText = "取消关注"
+	default:
+		tabName = "群组信息"
+		nameLabel = "群组名称: 加载中..."
+		descLabel = "群组描述: 加载中..."
+		creatorLabel = "创建者: 加载中..."
+		joinButtonText = "加入群组"
+		quitButtonText = "退出群组"
+	}
+
 	// 创建信息显示组件
-	gdw.groupNameLabel = widget.NewLabel("群组名称: 加载中...")
-	gdw.groupDescLabel = widget.NewLabel("群组描述: 加载中...")
+	gdw.groupNameLabel = widget.NewLabel(nameLabel)
+	gdw.groupDescLabel = widget.NewLabel(descLabel)
 	gdw.memberCountLabel = widget.NewLabel("成员数量: 加载中...")
-	gdw.creatorLabel = widget.NewLabel("创建者: 加载中...")
+	gdw.creatorLabel = widget.NewLabel(creatorLabel)
 
 	// 创建操作按钮
-	joinButton := widget.NewButton("加入群组", func() {
+	joinButton := widget.NewButton(joinButtonText, func() {
 		gdw.handleJoinGroup()
 	})
 
-	quitButton := widget.NewButton("退出群组", func() {
+	quitButton := widget.NewButton(quitButtonText, func() {
 		gdw.handleQuitGroup()
 	})
 
@@ -144,7 +190,7 @@ func (gdw *GroupDetailWindow) createInfoTab() {
 	)
 
 	// 添加到标签页
-	gdw.infoTab = container.NewTabItem("群组信息", infoContainer)
+	gdw.infoTab = container.NewTabItem(tabName, infoContainer)
 	gdw.tabContainer.Append(gdw.infoTab)
 }
 
@@ -204,19 +250,61 @@ func (gdw *GroupDetailWindow) createMembersTab() {
 		gdw.membersList, // center
 	)
 
+	// 根据服务类型设置标签名称
+	var membersTabName string
+	switch gdw.serviceID {
+	case 1: // QQ群
+		membersTabName = "群成员"
+	case 2: // 微信群
+		membersTabName = "群成员"
+	case 3: // 微博超话
+		membersTabName = "超话成员"
+	default:
+		membersTabName = "成员管理"
+	}
+
 	// 添加到标签页
-	gdw.membersTab = container.NewTabItem("成员管理", membersContainer)
+	gdw.membersTab = container.NewTabItem(membersTabName, membersContainer)
 	gdw.tabContainer.Append(gdw.membersTab)
 }
 
 // createSettingsTab 创建设置标签页
 func (gdw *GroupDetailWindow) createSettingsTab() {
+	// 根据服务类型设置标签和表单项名称
+	var tabName, nameFormItem, descFormItem, namePlaceholder, descPlaceholder string
+	switch gdw.serviceID {
+	case 1: // QQ群
+		tabName = "群设置"
+		nameFormItem = "群名称"
+		descFormItem = "群介绍"
+		namePlaceholder = "输入群名称"
+		descPlaceholder = "输入群介绍"
+	case 2: // 微信群
+		tabName = "群聊设置"
+		nameFormItem = "群聊名称"
+		descFormItem = "群公告"
+		namePlaceholder = "输入群聊名称"
+		descPlaceholder = "输入群公告"
+	case 3: // 微博超话
+		tabName = "超话设置"
+		nameFormItem = "超话名称"
+		descFormItem = "超话简介"
+		namePlaceholder = "输入超话名称"
+		descPlaceholder = "输入超话简介"
+	default:
+		tabName = "群组设置"
+		nameFormItem = "群组名称"
+		descFormItem = "群组描述"
+		namePlaceholder = "群组名称"
+		descPlaceholder = "群组描述"
+	}
+
 	// 创建设置表单
 	nameEntry := widget.NewEntry()
-	nameEntry.SetPlaceHolder("群组名称")
+	nameEntry.SetPlaceHolder(namePlaceholder)
 
 	descEntry := widget.NewMultiLineEntry()
-	descEntry.SetPlaceHolder("群组描述")
+	descEntry.SetPlaceHolder(descPlaceholder)
 
 	// 创建保存按钮
 	saveButton := widget.NewButton("保存设置", func() {
@@ -226,14 +314,14 @@ func (gdw *GroupDetailWindow) createSettingsTab() {
 	// 创建设置容器
 	gdw.settingsContainer = container.NewVBox(
 		widget.NewForm(
-			widget.NewFormItem("群组名称", nameEntry),
-			widget.NewFormItem("群组描述", descEntry),
+			widget.NewFormItem(nameFormItem, nameEntry),
+			widget.NewFormItem(descFormItem, descEntry),
 		),
 		saveButton,
 	)
 
 	// 添加到标签页
-	gdw.settingsTab = container.NewTabItem("群组设置", gdw.settingsContainer)
+	gdw.settingsTab = container.NewTabItem(tabName, gdw.settingsContainer)
 	gdw.tabContainer.Append(gdw.settingsTab)
 }
 
@@ -473,19 +561,58 @@ func (gdw *GroupDetailWindow) updateGroupInfo() {
 	}
 }
 
-// getRoleText 获取角色文本
+// getRoleText 获取角色文本（根据服务类型差异化显示）
 func (gdw *GroupDetailWindow) getRoleText(roleType int) string {
-	switch roleType {
-	case RoleOwner:
-		return "群主"
-	case RoleAdmin:
-		return "管理员"
-	case RoleMember:
-		return "成员"
-	case RoleGuest:
-		return "访客"
+	switch gdw.serviceID {
+	case 1: // QQ群 - 完整管理员制度
+		switch roleType {
+		case RoleOwner:
+			return "群主"
+		case RoleAdmin:
+			return "管理员"
+		case RoleMember:
+			return "成员"
+		case RoleGuest:
+			return "访客"
+		default:
+			return "未知"
+		}
+	case 2: // 微信群 - 仅群主有特权
+		switch roleType {
+		case RoleOwner:
+			return "群主"
+		case RoleAdmin, RoleMember, RoleGuest:
+			return "成员"
+		default:
+			return "未知"
+		}
+	case 3: // 微博超话 - 简单管理
+		switch roleType {
+		case RoleOwner:
+			return "话题主持人"
+		case RoleAdmin:
+			return "协管员"
+		case RoleMember:
+			return "成员"
+		case RoleGuest:
+			return "访客"
+		default:
+			return "未知"
+		}
 	default:
-		return "未知"
+		// 默认使用QQ群体系
+		switch roleType {
+		case RoleOwner:
+			return "群主"
+		case RoleAdmin:
+			return "管理员"
+		case RoleMember:
+			return "成员"
+		case RoleGuest:
+			return "访客"
+		default:
+			return "未知"
+		}
 	}
 }
 
@@ -654,25 +781,74 @@ func (gdw *GroupDetailWindow) showMemberActions(member map[string]interface{}) {
 
 	var buttons []fyne.CanvasObject
 
-	// 添加角色设置按钮
-	if gdw.userRole == RoleOwner {
-		// 群主可以设置任何角色
-		if int(currentRole) != RoleAdmin {
-			buttons = append(buttons, widget.NewButton("🛡️ 设为管理员", func() {
-				gdw.confirmSetMemberRole(int(memberID), memberName, RoleAdmin, "管理员")
+	// 根据服务类型添加不同的角色设置按钮
+	switch gdw.serviceID {
+	case 1: // QQ群 - 完整管理员制度
+		if gdw.userRole == RoleOwner {
+			// 群主可以设置任何角色
+			if int(currentRole) != RoleAdmin {
+				buttons = append(buttons, widget.NewButton("🛡️ 设为管理员", func() {
+					gdw.confirmSetMemberRole(int(memberID), memberName, RoleAdmin, "管理员")
+				}))
+			}
+			if int(currentRole) != RoleMember {
+				buttons = append(buttons, widget.NewButton("👤 设为普通成员", func() {
+					gdw.confirmSetMemberRole(int(memberID), memberName, RoleMember, "普通成员")
+				}))
+			}
+		} else if gdw.userRole == RoleAdmin {
+			// 管理员只能将普通成员设为管理员
+			if int(currentRole) == RoleMember {
+				buttons = append(buttons, widget.NewButton("🛡️ 设为管理员", func() {
+					gdw.confirmSetMemberRole(int(memberID), memberName, RoleAdmin, "管理员")
+				}))
+			}
+		}
+	case 2: // 微信群 - 仅群主有特权，无管理员制度
+		if gdw.userRole == RoleOwner {
+			// 微信群只有群主可以操作，但没有管理员角色
+			buttons = append(buttons, widget.NewButton("ℹ️ 微信群无管理员制度", func() {
+				dialog.ShowInformation("微信群特性", "微信群采用简单管理模式，仅群主拥有管理权限，无管理员角色", gdw.window)
 			}))
 		}
-		if int(currentRole) != RoleMember {
-			buttons = append(buttons, widget.NewButton("👤 设为普通成员", func() {
-				gdw.confirmSetMemberRole(int(memberID), memberName, RoleMember, "普通成员")
+	case 3: // 微博超话 - 简单管理
+		if gdw.userRole == RoleOwner {
+			// 话题主持人可以设置协管员
+			if int(currentRole) != RoleAdmin {
+				buttons = append(buttons, widget.NewButton("👑 设为协管员", func() {
+					gdw.confirmSetMemberRole(int(memberID), memberName, RoleAdmin, "协管员")
+				}))
+			}
+			if int(currentRole) != RoleMember {
+				buttons = append(buttons, widget.NewButton("👤 设为普通成员", func() {
+					gdw.confirmSetMemberRole(int(memberID), memberName, RoleMember, "普通成员")
+				}))
+			}
+		} else if gdw.userRole == RoleAdmin {
+			// 协管员权限有限
+			buttons = append(buttons, widget.NewButton("ℹ️ 协管员权限", func() {
+				dialog.ShowInformation("协管员权限", "协管员在微博超话中拥有有限的管理权限", gdw.window)
 			}))
 		}
-	} else if gdw.userRole == RoleAdmin {
-		// 管理员只能将普通成员设为管理员
-		if int(currentRole) == RoleMember {
-			buttons = append(buttons, widget.NewButton("🛡️ 设为管理员", func() {
-				gdw.confirmSetMemberRole(int(memberID), memberName, RoleAdmin, "管理员")
-			}))
+	default:
+		// 默认使用QQ群逻辑
+		if gdw.userRole == RoleOwner {
+			if int(currentRole) != RoleAdmin {
+				buttons = append(buttons, widget.NewButton("🛡️ 设为管理员", func() {
+					gdw.confirmSetMemberRole(int(memberID), memberName, RoleAdmin, "管理员")
+				}))
+			}
+			if int(currentRole) != RoleMember {
+				buttons = append(buttons, widget.NewButton("👤 设为普通成员", func() {
+					gdw.confirmSetMemberRole(int(memberID), memberName, RoleMember, "普通成员")
+				}))
+			}
+		} else if gdw.userRole == RoleAdmin {
+			if int(currentRole) == RoleMember {
+				buttons = append(buttons, widget.NewButton("🛡️ 设为管理员", func() {
+					gdw.confirmSetMemberRole(int(memberID), memberName, RoleAdmin, "管理员")
+				}))
+			}
 		}
 	}
 

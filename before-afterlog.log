@@ -1,64 +1,18 @@
-before gateway
-[2025-10-21T02:30:00.315Z] INFO: Command query_group_members processed successfully - {"processingTime":10}
-before client
-2025/10/21 10:30:00 最终用户角色: 2
-2025/10/21 10:30:00 发送获取群组设置命令: get_group_settings {"group_id":7,"service_id":1}
-sendCommand
-get_group_settings_resp {"code":0,"data":{"admin_system":2,"allow_subgroups":1,"creator_name":"1","description":"==========","group_name":"qq-----","group_type":0,"join_method":0,"max_members":1000},"message":"success"}
-before server
-[2025-10-21 10:30:00.286] [INFO] GroupController::handleGetGroupSettings - OOP鍖呰９鍣ㄨ璋冪敤
-[2025-10-21 10:30:00.297] [INFO] Updated group settings for group_id: 7, service_id: 1
-
-after gateway
+gateway log
 Client connected
-Received: change_group_type {"group_id":7,"source_service_id":1,"target_service_id":2}
-[2025-10-21T02:31:59.003Z] Incoming command: change_group_type
-[2025-10-21T02:31:59.003Z] INFO: Processing change_group_type command with data - {"group_id":7,"source_service_id":1,"target_service_id":2}
-[2025-10-21T02:31:59.021Z] INFO: change_group_type response from GroupSVC - {"code":0,"data":{"new_allow_subgroups":0,"new_group_type":1,"new_join_method":1},"message":"success"}
-[2025-10-21T02:31:59.021Z] INFO: Command change_group_type processed successfully - {"processingTime":18}
+Received: set_member_role {"group_id":6,"role_type":1,"service_id":1,"user_id":2}
+[2025-10-21T08:25:25.744Z] Incoming command: set_member_role
+[2025-10-21T08:25:25.744Z] INFO: Processing set_member_role command with data - {"group_id":6,"role_type":1,"service_id":1,"user_id":2}
+[2025-10-21T08:25:25.745Z] ERROR: Error in set_member_role request - "Missing required fields: role"
+[2025-10-21T08:25:25.745Z] INFO: Command set_member_role processed successfully - {"processingTime":1}
 Client disconnected
-Client connected
-Received: get_current_user_role {"group_id":7,"service_id":2,"user_id":1}
-[2025-10-21T02:31:59.047Z] Incoming command: get_current_user_role
-[2025-10-21T02:31:59.048Z] INFO: Processing get_current_user_role command with data - {"group_id":7,"service_id":2,"user_id":1}
-[2025-10-21T02:31:59.053Z] INFO: get_current_user_role response from GroupSVC - {"code":0,"message":"success","data":{"role_type":2}}
-[2025-10-21T02:31:59.053Z] INFO: Command get_current_user_role processed successfully - {"processingTime":6}
-Client disconnected
-Client connected
-Received: get_group_settings {"group_id":7,"service_id":2}
-[2025-10-21T02:31:59.058Z] Incoming command: get_group_settings
-[2025-10-21T02:31:59.058Z] INFO: Processing get_group_settings command with data - {"group_id":7,"service_id":2}
-[2025-10-21T02:31:59.072Z] INFO: get_group_settings response from GroupSVC - {"code":0,"data":{"admin_system":0,"allow_subgroups":0,"creator_name":"1","description":"==========","group_name":"qq-----","group_type":1,"join_method":1,"max_members":500},"message":"success"}
-[2025-10-21T02:31:59.073Z] INFO: Command get_group_settings processed successfully - {"processingTime":15}
-Client disconnected
-Client connected
-Received: query_group_members {"group_id":7,"service_id":2}
-[2025-10-21T02:31:59.074Z] Incoming command: query_group_members
-[2025-10-21T02:31:59.074Z] INFO: Processing query_group_members command with data - {"group_id":7,"service_id":2}
-[2025-10-21T02:31:59.079Z] INFO: query_group_members response from GroupSVC - {"code":0,"data":{"group_id":7,"members":[],"service_id":2,"service_name":"WeChat"},"message":"Successfully retrieved group members"}
-after client
-2025/10/21 10:31:58 发送变换群组类型命令: change_group_type {"group_id":7,"source_service_id":1,"target_service_id":2}
-sendCommand
-change_group_type_resp {"code":0,"data":{"new_allow_subgroups":0,"new_group_type":1,"new_join_method":1},"message":"success"}
 
-2025/10/21 10:31:59 开始获取用户角色: GroupID=7, UserID=1, ServiceID=2
-2025/10/21 10:31:59 发送获取当前用户角色命令: get_current_user_role {"group_id":7,"service_id":2,"user_id":1}
+client log
+2025/10/21 16:25:22 成功获取用户角色响应: map[code:0 data:map[role_type:2] message:success]
+2025/10/21 16:25:22 获取用户角色响应: map[code:0 data:map[role_type:2] message:success]
+2025/10/21 16:25:22 成功获取用户角色: 2
+2025/10/21 16:25:22 最终用户角色: 2
+2025/10/21 16:25:25 发送设置成员角色命令: set_member_role {"group_id":6,"role_type":1,"service_id":1,"user_id":2}
 sendCommand
-get_current_user_role_resp {"code":0,"message":"success","data":{"role_type":2}}
+set_member_role_resp {"code":400,"message":"Missing required fields: role","error":"Missing required fields: role"}
 
-2025/10/21 10:31:59 成功获取用户角色响应: map[code:0 data:map[role_type:2] message:success]
-2025/10/21 10:31:59 获取用户角色响应: map[code:0 data:map[role_type:2] message:success]
-2025/10/21 10:31:59 成功获取用户角色: 2
-2025/10/21 10:31:59 最终用户角色: 2
-2025/10/21 10:31:59 发送获取群组设置命令: get_group_settings {"group_id":7,"service_id":2}
-sendCommand
-get_group_settings_resp {"code":0,"data":{"admin_system":0,"allow_subgroups":0,"creator_name":"1","description":"==========","group_name":"qq-----","group_type":1,"join_method":1,"max_members":500},"message":"success"}
-after server
-[2025-10-21 10:31:59.007] [INFO] GroupController::handleChangeGroupType - OOP鍖呰９鍣ㄨ璋冪敤
-[2025-10-21 10:31:59.016] [INFO] Updated group settings for group_id: 7, service_id: 1
-[2025-10-21 10:31:59.017] [INFO] Changed group type for group_id: 7 from service_id: 1 to service_id: 2
-[2025-10-21 10:31:59.018] [INFO] Retrieved group settings for group_id: 7, service_id: 1
-[2025-10-21 10:31:59.049] [INFO] GroupController::handleGetCurrentUserRole - OOP鍖呰９鍣ㄨ璋冪敤
-[2025-10-21 10:31:59.051] [INFO] Retrieved user role: 2 for user_id: 1 in group_id: 7
-[2025-10-21 10:31:59.060] [INFO] GroupController::handleGetGroupSettings - OOP鍖呰９鍣ㄨ璋冪敤
-[2025-10-21 10:31:59.070] [INFO] Updated group settings for group_id: 7, service_id: 2

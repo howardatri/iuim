@@ -74,6 +74,82 @@ func (m *NetworkManager) Register(userInfo map[string]string) (map[string]interf
 	return result, nil
 }
 
+// QueryCommonFriends 查询共同好友
+func (m *NetworkManager) QueryCommonFriends(userID, friendID, serviceID int) (map[string]interface{}, error) {
+	// 构建查询命令
+	queryData := map[string]interface{}{
+		"user_id":    userID,
+		"friend_id":  friendID,
+		"service_id": serviceID,
+	}
+
+	jsonData, err := json.Marshal(queryData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化查询数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("query_common_friends %s", string(jsonData))
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: query_common_friends_resp {JSON数据}
+	if !strings.HasPrefix(resp, "query_common_friends_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "query_common_friends_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	log.Printf("Parsed query_common_friends result: %+v", result)
+	return result, nil
+}
+
+// QueryCrossServiceFriends 查询跨服务好友推荐
+func (m *NetworkManager) QueryCrossServiceFriends(userID, currentServiceID, targetServiceID int) (map[string]interface{}, error) {
+	// 构建查询命令
+	queryData := map[string]interface{}{
+		"user_id":            userID,
+		"current_service_id": currentServiceID,
+		"target_service_id":  targetServiceID,
+	}
+
+	jsonData, err := json.Marshal(queryData)
+	if err != nil {
+		return nil, fmt.Errorf("序列化查询数据失败: %w", err)
+	}
+
+	cmd := fmt.Sprintf("query_cross_service_friends %s", string(jsonData))
+
+	// 发送命令并获取响应
+	resp, err := m.sendCommand(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析响应
+	// 响应格式: query_cross_service_friends_resp {JSON数据}
+	if !strings.HasPrefix(resp, "query_cross_service_friends_resp ") {
+		return nil, fmt.Errorf("无效的响应格式: %s", resp)
+	}
+
+	jsonStr := strings.TrimPrefix(resp, "query_cross_service_friends_resp ")
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析响应JSON失败: %w", err)
+	}
+
+	log.Printf("Parsed query_cross_service_friends result: %+v", result)
+	return result, nil
+}
+
 // UpdateProfile 更新用户资料
 func (m *NetworkManager) UpdateProfile(userID int, profileData map[string]interface{}) (map[string]interface{}, error) {
 	// 构建更新资料命令

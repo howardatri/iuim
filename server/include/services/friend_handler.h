@@ -32,6 +32,25 @@ void handleFriendDelete(const httplib::Request& req, httplib::Response& res);
 void handleFriendQuery(const httplib::Request& req, httplib::Response& res);
 
 void handleUserSearch(const httplib::Request& req, httplib::Response& res);
+
+/**
+ * @brief 处理查询共同好友请求
+ * 查询两个服务之间的共同好友
+ * 
+ * @param req HTTP请求
+ * @param res HTTP响应
+ */
+void handleQueryCommonFriends(const httplib::Request& req, httplib::Response& res);
+
+/**
+ * @brief 处理跨服务好友推荐请求
+ * 获取用户在其他已激活服务中的好友作为推荐
+ * 
+ * @param req HTTP请求
+ * @param res HTTP响应
+ */
+void handleQueryCrossServiceFriends(const httplib::Request& req, httplib::Response& res);
+
 } // namespace services
 } // namespace iuim
 
