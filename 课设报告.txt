@@ -1,0 +1,246 @@
+一、	设计任务分析
+根据课程设计要求，本次设计需要完成以下几个关键任务: 
+1多服务用户体系：设计并实现一个能兼容不同ID策略（如QQ/微博共享ID，微信独立ID）的用户系统，并管理用户的基本信息、好友列表和群组列表。
+2 好友管理：实现跨服务的好友添加、删除、查询等基本功能，并支持如“推荐好友”等高级功能。
+3群组管理：实现加入/退出群组、成员查询等功能。特别地，需要体现不同服务（如QQ和微信）在群组管理理念上的差异，例如加群方式、管理员制度等，这是体现面向对象多态思想的关键。
+4服务开通与登录：用户可以自由选择开通平台上的各项服务，并实现“单点登录”功能，即一个服务登录后，其他已开通服务也视为登录状态。
+5面向对象设计与实现：系统的设计必须遵循面向对象的思想，建立清晰的类层次结构，应用继承、封装和多态等核心概念。根据要求，所有自定义类名均以姓名缩写“ZHY”结尾，以保证设计的独立性和原创性。
+6系统架构：虽然课程设计要求以main函数驱动的控制台程序为基础，但为了更好地模拟真实世界的IM系统并提高可扩展性，本项目采用客户端/服务端（C/S）分离的微服务架构。服务端使用C++实现，负责所有核心业务逻辑和数据持久化；客户端使用Go语言和Fyne库实现，负责用户交互和界面展示。这种架构更能体现现代软件工程中的模块化和解耦思想。
+
+二、	设计方案
+本项目采用客户端/服务端（C/S）分离的微服务架构。服务端作为本次课程设计的核心，其内部遵循了清晰的分层设计思想，将复杂的系统功能解构为表现层、业务逻辑层和数据访问层，并抽象出领域模型。
+服务端具体层次拆分 (以群组服务为例)
+表现层 (Presentation Layer):
+GroupController: 作为静态类，是 HTTP 请求的直接入口。它解析请求，然后调用 GroupService 来处理业务，完全不关心业务逻辑的具体实现。
+服务层 (Service Layer):
+GroupService: 这是应用服务的核心，负责编排和协调业务流程。它持有仓储（IGroupRepository）和工厂（GroupFactory）的引用，通过它们来完成一个完整的用例（比如“创建群组”）。
+仓储层 (Repository Layer):
+IGroupRepository: 定义了数据持久化的接口，使得 GroupService 依赖于抽象而不是具体实现
+GroupRepository: 是接口的具体实现，它内部使用 DatabaseManager 来与数据库进行实际的交互，负责将领域对象（如 BaseGroup）与数据库记录进行转换。
+领域层 (Domain Layer):
+BaseGroup: 代表核心的业务实体。在更完善的 DDD 设计中，它会包含自身的业务规则（例如 addMember 方法）。
+GroupFactory: 负责根据不同的类型（如 QQ、WeChat）创建不同的 BaseGroup 派生类实例，封装了复杂的创建逻辑。
+基础设施层 (Infrastructure):
+httplib_Server 和 DatabaseManager: 这些是与具体技术相关的底层组件，被上层封装和调用。
+技术体现
+封装与抽象：通过BaseUser等基类的设计，将用户、群组等概念的共性抽象出来。数据成员被保护在类内部，通过公共接口（getId(), getName()等）访问，实现了良好的封装。
+继承：QQUserZHY继承自BaseUser，QQGroupZHY继承自BaseGroup，清晰地表达了“is-a”的关系，实现了代码复用，并为多态提供了可能性。
+分层架构：通过将系统划分为表现层、业务逻辑层和数据访问层，实现了“高内聚、低耦合”的设计原则。每一层职责单一，便于独立开发、测试和维护。
+接口化设计：Manager层为表现层提供了稳定的业务接口，屏蔽了底层数据操作的复杂性，这符合课程设计中“好友维护、群信息维护等操作均应该提供接口形式”的要求。
+
+三、 详细设计
+本次设计的实现严格遵循了课程设计文档中提出的技术层次要求。通过分层架构和面向对象的设计原则，项目不仅完成了基本功能，还在封装、继承、多态和可扩展性等方面达到了较高的技术水平。以下将对照技术层次要求，详细阐述各功能的具体实现。
+1. 对象层次的实现 (满足技术层次要求 2)
+要求：正确完成类的切割，利用对象技术实现，包含“容器类”（如成员管理）和“其它主要类”（如群信息、好友信息）。
+实现方案:
+
+本项目通过引入Manager层和Model层的概念，完美地实现了类的切割。
+•	“容器类”的实现：我们设计了UserManagerZHY、FriendManagerZHY和GroupManagerZHY等一系列管理类。这些类不直接存储数据集合，而是作为业务逻辑的“容器”和入口，负责协调和管理其领域内的所有操作，如好友的添加、群组的创建等。
+•	“其它主要类”的实现：我们为系统中的核心实体（用户、群、服务）设计了对应的模型类，如BaseUser、BaseGroup以及它们的派生类QQUserZHY、QQGroupZHY等。这些类封装了实体自身的数据和基本行为。
+关键代码示例 (GroupManagerZHY)：
+namespace iuim {
+namespace managers {
+// GroupManagerZHY 作为群组业务的“容器类”或“管理器”
+class GroupManagerZHY {
+public:
+    // 提供对外的业务操作接口
+    static bool createGroup(int creatorId, const std::string& groupName, int serviceId, const std::string& description);
+    static bool joinGroup(int userId, int groupId, int serviceId, int role);
+    // ... 其他群组管理方法
+};
+} // namespace managers
+} // namespace iuim
+2. 抽象与封装的实现 (满足技术层次要求 3)
+要求：采用继承实现复用，提供接口保护数据，抽象出基础类，并提供接口形式的操作（如好友维护）。
+实现方案：
+1.	抽象基础类与继承复用：我们抽象出了BaseUser、BaseGroup和BaseService三个核心基类，它们定义了所有同类实体的共同属性（如id_, name_）和行为。具体的业务实体如QQUserZHY、WeChatGroupZHY则通过公有继承（public）复用这些基类的代码和接口。
+2.	接口保护数据：所有基类和派生类的数据成员（如id_, name_）均声明为protected，外部代码无法直接访问，必须通过public的getter方法（如getId(), getName()）来获取，实现了对数据的有效保护和封装。
+3.	接口形式的操作：Manager类（如FriendManagerZHY）为上层（Controller/Handler）提供了稳定、清晰的业务操作接口。例如，好友的添加操作被封装在FriendManagerZHY::addFriend静态方法中，调用者无需关心其内部是如何通过DatabaseManager实现的。
+关键代码示例 (基类与派生类)：
+class BaseUser {
+public:
+    // 公共接口，用于访问受保护的数据
+    int getId() const { return id_; }
+    const std::string& getUsername() const { return username_; }
+protected: // 使用 protected 实现接口保护
+    int id_;
+   std::string username_;
+    std::string nickname_;
+};
+
+// filepath: c:\Users\ASUS\Desktop\iuim\server\include\models\qquserZHY.h
+// QQUserZHY 通过继承复用 BaseUser 的代码和接口
+class QQUserZHY : public BaseUser {
+public:
+    QQUserZHY(int id, const std::string& username, const std::string& nickname);
+    // ... QQ用户特有的方法
+};
+3. 面向对象多态的实现 (满足技术层次要求 4)
+要求：支持多态功能，特别是在好友管理、群管理等模块。
+实现方案：
+
+为了体现群管理的差异化（如QQ群可申请加入，微信群只能邀请），我们在设计中为多态的应用打下了坚实的基础。通过在基类中定义虚函数，并在派生类中进行重写（override），可以实现动态绑定，从而在运行时根据对象的实际类型执行不同的逻辑。
+关键代码示例 (群管理多态设计)：
+// 在 BaseGroup 基类中定义虚函数
+class BaseGroup {
+public:
+    // ...
+    // 定义一个虚函数接口，用于处理加入请求
+    virtual std::string getJoinMethod() const {
+        return "Not Allowed"; // 默认不允许主动加入
+    }
+};
+
+// 在 QQGroupZHY 派生类中重写
+class QQGroupZHY : public BaseGroup {
+public:
+    // ...
+    // 重写方法，体现QQ群的“申请加入”特性
+    std::string getJoinMethod() const override {
+        return "Join by Application";
+    }
+};
+
+应用场景：在GroupManagerZHY中，当需要处理一个加群逻辑时，可以创建一个BaseGroup*指针，让它指向一个根据serviceId实例化的QQGroupZHY或WeChatGroupZHY对象。然后通过该基类指针调用getJoinMethod()方法，程序会在运行时自动调用对应派生类的版本，从而实现多态。
+4. 优化提高层次的实现 (满足技术层次要求 5)
+要求：支持I/O操作、可扩展性、灵活性、UML图和命名规范。
+实现方案：
+•	I/O操作支持：本项目没有将数据固化在代码中，而是通过DatabaseManager类与SQLite数据库文件 (iuim.db) 进行交互，实现了所有用户、好友、群组等信息的持久化存储（断电保存）。
+•	可扩展性支持：分层架构和基于继承的模型设计提供了极佳的可扩展性。若要新增一个“微唱”服务，只需：
+1.	创建WeiChangUserZHY、WeiChangGroupZHY等派生类。
+2.	在DatabaseManager中添加对应的表和操作。
+3.	在Manager层中增加新的业务逻辑方法。
+
+整个过程无需大规模修改现有代码。
+•	灵活性支持：如多态部分所述，群的管理模式可以通过派生类和虚函数实现动态可变。
+•	UML图与命名规范：已按要求提供了UML类图，并且所有自定义类（如UserManagerZHY）均以姓名缩写“ZHY”结尾，确保了设计的独立性和原创性。
+
+1. 用户注册功能的实现
+用户注册是一个典型的业务流程，涉及表现层、业务逻辑层和数据访问层的协作。
+•	流程：UserSVC的handleRegister函数接收HTTP请求 -> 调用UserManagerZHY::registerUser -> UserManagerZHY内部调用DatabaseManager::registerUser -> DatabaseManager执行SQL INSERT语句
+//filepath: 
+\iuim\server\src\managers\usermanagerZHY.cpp
+bool UserManagerZHY::registerUser(const std::string& username, const std::string& password, const std::string& nickname, const std::string& email) {
+    // 直接将业务委托给数据访问层
+    return utils::DatabaseManager::getInstance().registerUser(username, password, nickname, email);
+三、 详细设计
+本次设计的实现严格遵循了课程设计文档中提出的技术层次要求。通过分层架构和面向对象的设计原则，项目不仅完成了基本功能，还在封装、继承、多态和可扩展性等方面达到了较高的技术水平。以下将对照技术层次要求，详细阐述各功能的具体实现。
+1. 对象层次的实现 (满足技术层次要求 2)
+要求：正确完成类的切割，利用对象技术实现，包含“容器类”（如成员管理）和“其它主要类”（如群信息、好友信息）。
+实现方案:
+
+本项目通过引入Manager层和Model层的概念，完美地实现了类的切割。
+•	“容器类”的实现：我们设计了UserManagerZHY、FriendManagerZHY和GroupManagerZHY等一系列管理类。这些类不直接存储数据集合，而是作为业务逻辑的“容器”和入口，负责协调和管理其领域内的所有操作，如好友的添加、群组的创建等。
+•	“其它主要类”的实现：我们为系统中的核心实体（用户、群、服务）设计了对应的模型类，如BaseUser、BaseGroup以及它们的派生类QQUserZHY、QQGroupZHY等。这些类封装了实体自身的数据和基本行为。
+关键代码示例 (GroupManagerZHY)：
+namespace iuim {
+namespace managers {
+// GroupManagerZHY 作为群组业务的“容器类”或“管理器”
+class GroupManagerZHY {
+public:
+    // 提供对外的业务操作接口
+    static bool createGroup(int creatorId, const std::string& groupName, int serviceId, const std::string& description);
+    static bool joinGroup(int userId, int groupId, int serviceId, int role);
+    // ... 其他群组管理方法
+};
+} // namespace managers
+} // namespace iuim
+2. 抽象与封装的实现 (满足技术层次要求 3)
+要求：采用继承实现复用，提供接口保护数据，抽象出基础类，并提供接口形式的操作（如好友维护）。
+实现方案：
+1.	抽象基础类与继承复用：我们抽象出了BaseUser、BaseGroup和BaseService三个核心基类，它们定义了所有同类实体的共同属性（如id_, name_）和行为。具体的业务实体如QQUserZHY、WeChatGroupZHY则通过公有继承（public）复用这些基类的代码和接口。
+2.	接口保护数据：所有基类和派生类的数据成员（如id_, name_）均声明为protected，外部代码无法直接访问，必须通过public的getter方法（如getId(), getName()）来获取，实现了对数据的有效保护和封装。
+3.	接口形式的操作：Manager类（如FriendManagerZHY）为上层（Controller/Handler）提供了稳定、清晰的业务操作接口。例如，好友的添加操作被封装在FriendManagerZHY::addFriend静态方法中，调用者无需关心其内部是如何通过DatabaseManager实现的。
+关键代码示例 (基类与派生类)：
+class BaseUser {
+public:
+    // 公共接口，用于访问受保护的数据
+    int getId() const { return id_; }
+    const std::string& getUsername() const { return username_; }
+protected: // 使用 protected 实现接口保护
+    int id_;
+    std::string username_;
+    std::string nickname_;
+};
+
+// filepath: c:\Users\ASUS\Desktop\iuim\server\include\models\qquserZHY.h
+// QQUserZHY 通过继承复用 BaseUser 的代码和接口
+class QQUserZHY : public BaseUser {
+public:
+    QQUserZHY(int id, const std::string& username, const std::string& nickname);
+    // ... QQ用户特有的方法
+};
+3. 面向对象多态的实现 (满足技术层次要求 4)
+要求：支持多态功能，特别是在好友管理、群管理等模块。
+实现方案：
+
+为了体现群管理的差异化（如QQ群可申请加入，微信群只能邀请），我们在设计中为多态的应用打下了坚实的基础。通过在基类中定义虚函数，并在派生类中进行重写（override），可以实现动态绑定，从而在运行时根据对象的实际类型执行不同的逻辑。
+关键代码示例 (群管理多态设计)：
+// 在 BaseGroup 基类中定义虚函数
+class BaseGroup {
+public:
+    // ...
+    // 定义一个虚函数接口，用于处理加入请求
+    virtual std::string getJoinMethod() const {
+        return "Not Allowed"; // 默认不允许主动加入
+    }
+};
+
+// 在 QQGroupZHY 派生类中重写
+class QQGroupZHY : public BaseGroup {
+public:
+    // ...
+    // 重写方法，体现QQ群的“申请加入”特性
+    std::string getJoinMethod() const override {
+        return "Join by Application";
+    }
+};
+
+应用场景：在GroupManagerZHY中，当需要处理一个加群逻辑时，可以创建一个BaseGroup*指针，让它指向一个根据serviceId实例化的QQGroupZHY或WeChatGroupZHY对象。然后通过该基类指针调用getJoinMethod()方法，程序会在运行时自动调用对应派生类的版本，从而实现多态。
+4. 优化提高层次的实现 (满足技术层次要求 5)
+要求：支持I/O操作、可扩展性、灵活性、UML图和命名规范。
+实现方案：
+•	I/O操作支持：本项目没有将数据固化在代码中，而是通过DatabaseManager类与SQLite数据库文件 (iuim.db) 进行交互，实现了所有用户、好友、群组等信息的持久化存储（断电保存）。
+•	可扩展性支持：分层架构和基于继承的模型设计提供了极佳的可扩展性。若要新增一个“微唱”服务，只需：
+1.	创建WeiChangUserZHY、WeiChangGroupZHY等派生类。
+2.	在DatabaseManager中添加对应的表和操作。
+3.	在Manager层中增加新的业务逻辑方法。
+
+整个过程无需大规模修改现有代码。
+•	灵活性支持：如多态部分所述，群的管理模式可以通过派生类和虚函数实现动态可变。
+•	UML图与命名规范：已按要求提供了UML类图，并且所有自定义类（如UserManagerZHY）均以姓名缩写“ZHY”结尾，确保了设计的独立性和原创性。
+
+1. 用户注册功能的实现
+用户注册是一个典型的业务流程，涉及表现层、业务逻辑层和数据访问层的协作。
+•	流程：UserSVC的handleRegister函数接收HTTP请求 -> 调用UserManagerZHY::registerUser -> UserManagerZHY内部调用DatabaseManager::registerUser -> DatabaseManager执行SQL INSERT语句
+//filepath: 
+\iuim\server\src\managers\usermanagerZHY.cpp
+bool UserManagerZHY::registerUser(const std::string& username, const std::string& password, const std::string& nickname, const std::string& email) {
+    // 直接将业务委托给数据访问层
+    return utils::DatabaseManager::getInstance().registerUser(username, password, nickname, email);
+}
+2. 群组管理的差异化设计 (多态的应用思路)
+课程设计要求体现不同微X群组的理念不同（如QQ群可申请加入，微信群只能邀请）。虽然当前实现尚未完全利用虚函数实现动态多态，但通过继承和类设计已为此打下基础。
+•	设计思路：
+1.	在BaseGroup基类中定义一个虚函数，如virtual bool canJoin(int userId)。
+2.	在QQGroupZHY中重写此方法，实现“检查是否符合申请条件”的逻辑。
+3.	在WeChatGroupZHY中重写此方法，直接返回false，因为微信群不能主动申请加入，只能通过inviteMember方法（另一个可设计的方法）加入。
+四、总结与体会
+本次课程设计是一次将理论知识与实践相结合的宝贵经历。通过从零开始构建一个模拟的即时通信系统，我深刻体会到了面向对象编程思想在解决复杂问题时的优势。
+设计的优点：
+结构清晰：采用C/S微服务架构和内部分层设计，使得项目结构非常清晰，职责明确。这大大降低了代码的耦合度，提高了可维护性。
+可扩展性强：通过抽象基类和继承体系，未来要增加新的服务（如“微商”、“微唱”）或为现有服务增加新功能将非常方便，只需创建新的派生类并实现其特定逻辑即可。
+符合设计要求：项目严格遵循了课程设计中关于类切割、抽象封装、接口设计以及命名规范（添加姓名缩写）等要求，达到了较高的技术层次。
+调试中遇到的问题与解决方案：
+1问题：客户端与服务端JSON格式不匹配。在开发好友列表功能时，客户端始终提示“获取好友列表失败”，但服务端的日志却显示查询成功。
+解决方案：通过仔细比对客户端（Go）解析JSON的代码和服务端（C++）生成JSON的代码，发现两边对成功响应的格式定义不一致（客户端期望{"success": true, "friends": [...]}，而服务端返回的是{"code": 0, "data": [...]}）。最终，通过统一双方的数据协议，将服务端的响应格式修改为客户端期望的格式，问题得以解决。这个过程让我深刻认识到接口定义和文档协同的重要性。
+本次设计让我认识到，软件开发不仅仅是编写代码，更重要的是前期的设计和架构。一个良好的设计能够让后续的开发和维护事半功倍。面向对象的思想，特别是封装、继承和多态，不是空洞的理论，而是在构建灵活、可复用、易扩展系统时的强大武器。虽然为了赶上DDL，我采用了“最小化类封装”的快速迭代方案，但这已经为后续进行更深度的DDD（领域驱动设计）改造打下了坚实的基础。从面向对象编程，到分层架构设计，这次课程设计极大地提升了我的软件工程实践能力。
+
+
+
+
+
+
+
+
+

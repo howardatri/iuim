@@ -28,6 +28,10 @@ int main() {
         // 新增：用户搜索功能
         server.Post("/search", FriendController::handleUserSearch);
         
+        // 新增：跨服务好友功能
+        server.Post("/common", FriendController::handleQueryCommonFriends);
+        server.Post("/cross-service", FriendController::handleQueryCrossServiceFriends);
+        
         // 启动服务器
         Logger::getInstance().logInfo("FriendSVC listening on port 50054 with OOP wrapper");
         server.listen("0.0.0.0", 50054);

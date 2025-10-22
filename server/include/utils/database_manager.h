@@ -49,6 +49,11 @@ public:
     bool queryFriends(int userId, int serviceId, std::string& jsonResult);
     bool searchUsers(const std::string& keyword, std::string& jsonResult);
     
+    // 跨服务好友管理相关方法
+    bool debugCheckTargetServiceUsers(int targetServiceId, int excludeUserId);
+    bool queryCommonFriends(int userId, int friendId, int serviceId, std::string& jsonResult);
+    bool queryCrossServiceFriends(int userId, int currentServiceId, int targetServiceId, std::string& jsonResult);
+    
     // 消息管理相关方法
     bool sendMessage(int senderId, int receiverId, int type, const std::string& content, int serviceId);
     bool getMessageHistory(int userId, int targetId, int type, int serviceId, int page, int pageSize, std::string& jsonResult);

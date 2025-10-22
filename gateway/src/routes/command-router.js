@@ -45,6 +45,10 @@ class CommandRouter {
     this.registerCommand('delete_friend', this.friendHandler);
     this.registerCommand('query_friend', this.friendHandler);
     this.registerCommand('search_users', this.friendHandler);
+    
+    // 跨服务好友功能
+    this.registerCommand('query_common_friends', this.friendHandler);
+    this.registerCommand('query_cross_service_friends', this.friendHandler);
 
     // 群组相关命令（基础 + 增强功能）
     this.registerCommand('join_group', this.groupHandler);

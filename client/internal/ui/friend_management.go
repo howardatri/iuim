@@ -135,8 +135,18 @@ func NewFriendList(window fyne.Window, netManager *network.NetworkManager, userI
 		fl.showAddFriendDialog()
 	})
 
+	// 创建跨服务好友推荐按钮
+	crossServiceButton := widget.NewButton("跨服务推荐", func() {
+		fl.showCrossServiceFriendsDialog()
+	})
+
+	// 创建共同好友查询按钮
+	commonFriendsButton := widget.NewButton("共同好友", func() {
+		fl.showCommonFriendsDialog()
+	})
+
 	// 创建按钮栏
-	buttonBar := container.NewHBox(refreshButton, addFriendButton)
+	buttonBar := container.NewHBox(refreshButton, addFriendButton, crossServiceButton, commonFriendsButton)
 
 	// 创建主容器
 	fl.container = container.NewBorder(
@@ -816,4 +826,261 @@ func (us *UserSearch) searchUsers(keyword string) {
 // SetOnAddFriend 设置添加好友回调
 func (us *UserSearch) SetOnAddFriend(callback func(user network.User)) {
 	us.onAddFriend = callback
+}
+
+// 在 showCrossServiceFriendsDialog 函数中改进显示
+func (fl *FriendList) showCrossServiceFriendsDialog() {
+	log.Printf("Creating CrossServiceFriendsDialog")
+
+	// 创建服务选择下拉框
+	serviceOptions := []string{"QQ (1)", "微信 (2)", "微博 (3)"}
+	serviceSelect := widget.NewSelect(serviceOptions, nil)
+	serviceSelect.SetSelected(serviceOptions[0])
+
+	// 创建结果标签
+	resultLabel := widget.NewLabel("选择目标服务并点击查询，将显示该服务中所有可添加的用户")
+
+	// 创建好友列表
+	friendsList := widget.NewList(
+		func() int { return 0 },
+		func() fyne.CanvasObject {
+			return container.NewHBox(
+				widget.NewLabel(""),
+				widget.NewButton("添加好友", nil),
+			)
+		},
+		func(id widget.ListItemID, obj fyne.CanvasObject) {},
+	)
+
+	var crossServiceUsers []network.User
+
+	// 查询按钮
+	queryButton := widget.NewButton("查询目标服务用户", func() {
+		selectedService := serviceSelect.Selected
+		var targetServiceID int
+		switch selectedService {
+		case "QQ (1)":
+			targetServiceID = 1
+		case "微信 (2)":
+			targetServiceID = 2
+		case "微博 (3)":
+			targetServiceID = 3
+		default:
+			return
+		}
+
+		// 调用API查询跨服务用户
+		result, err := fl.netManager.QueryCrossServiceFriends(fl.userID, fl.serviceID, targetServiceID)
+		if err != nil {
+			log.Printf("Query cross service friends error: %v", err)
+			resultLabel.SetText("查询失败: " + err.Error())
+			return
+		}
+
+		log.Printf("Cross service friends result: %+v", result)
+
+		// 解析结果
+		crossServiceUsers = []network.User{}
+		if data, ok := result["data"].([]interface{}); ok {
+			for _, userData := range data {
+				if userMap, ok := userData.(map[string]interface{}); ok {
+					user := network.User{}
+					if id, ok := userMap["friend_id"].(float64); ok {
+						user.UserID = int(id)
+					}
+					if username, ok := userMap["username"].(string); ok {
+						user.Username = username
+					}
+					if nickname, ok := userMap["nickname"].(string); ok {
+						user.Nickname = nickname
+					}
+					if email, ok := userMap["email"].(string); ok {
+						user.Email = email
+					}
+					crossServiceUsers = append(crossServiceUsers, user)
+				}
+			}
+		}
+
+		// 更新结果标签
+		serviceName := "未知服务"
+		switch targetServiceID {
+		case 1:
+			serviceName = "QQ"
+		case 2:
+			serviceName = "微信"
+		case 3:
+			serviceName = "微博"
+		}
+		resultLabel.SetText(fmt.Sprintf("在 %s 服务中找到 %d 个用户", serviceName, len(crossServiceUsers)))
+
+		// 更新列表
+		friendsList.Length = func() int { return len(crossServiceUsers) }
+		friendsList.CreateItem = func() fyne.CanvasObject {
+			return container.NewHBox(
+				widget.NewLabel(""),
+				widget.NewButton("添加好友", nil),
+			)
+		}
+		friendsList.UpdateItem = func(id widget.ListItemID, obj fyne.CanvasObject) {
+			if id < len(crossServiceUsers) {
+				user := crossServiceUsers[id]
+				container := obj.(*fyne.Container)
+				label := container.Objects[0].(*widget.Label)
+				button := container.Objects[1].(*widget.Button)
+
+				label.SetText(fmt.Sprintf("%s (%s) - %s", user.Nickname, user.Username, user.Email))
+				button.OnTapped = func() {
+					// 添加好友到当前服务
+					log.Printf("Adding cross service friend: %s (ID: %d)", user.Nickname, user.UserID)
+					_, err := fl.netManager.AddFriend(fl.userID, user.UserID, fl.serviceID, "")
+					if err != nil {
+						log.Printf("Add cross service friend error: %v", err)
+						dialog.ShowError(fmt.Errorf("添加好友失败: %v", err), fl.window)
+					} else {
+						log.Printf("Successfully added cross service friend: %s", user.Username)
+						dialog.ShowInformation("成功", fmt.Sprintf("已发送好友请求给 %s", user.Nickname), fl.window)
+						fl.refreshFriends() // 刷新好友列表
+					}
+				}
+			}
+		}
+		friendsList.Refresh()
+	})
+
+	// 在 showCrossServiceFriendsDialog 函数中添加测试按钮
+	testButton := widget.NewButton("创建测试用户", func() {
+		go func() {
+			// 这里可以调用创建测试用户的API
+			// 暂时先提示用户手动创建测试数据
+			fyne.Do(func() {
+				dialog.ShowInformation("测试数据",
+					"请确保在目标服务中有其他已激活的用户。\n"+
+						"可以通过注册新用户并激活目标服务来测试。",
+					fl.window)
+			})
+		}()
+	})
+
+	// 创建对话框内容
+	content := container.NewVBox(
+		widget.NewLabel("选择要查询的目标服务:"),
+		serviceSelect,
+		container.NewHBox(queryButton, testButton), // 将按钮放在一行
+		//queryButton,
+		widget.NewSeparator(),
+		resultLabel,
+		container.NewScroll(friendsList),
+	)
+
+	// 创建对话框
+	dialog := dialog.NewCustom("跨服务用户推荐", "关闭", content, fl.window)
+	dialog.Resize(fyne.NewSize(500, 400))
+	dialog.Show()
+}
+
+// showCommonFriendsDialog 显示共同好友查询对话框
+func (fl *FriendList) showCommonFriendsDialog() {
+	log.Printf("Creating CommonFriendsDialog")
+
+	// 创建好友选择下拉框
+	friendOptions := []string{}
+	friendMap := make(map[string]network.Friend)
+
+	// 填充当前好友列表
+	for _, friend := range fl.friends {
+		option := fmt.Sprintf("%s (%s)", friend.Username, friend.Nickname)
+		friendOptions = append(friendOptions, option)
+		friendMap[option] = friend
+	}
+
+	if len(friendOptions) == 0 {
+		// 如果没有好友，显示提示
+		content := widget.NewLabel("您还没有好友，无法查询共同好友")
+		dialog := dialog.NewCustom("共同好友查询", "关闭", content, fl.window)
+		dialog.Show()
+		return
+	}
+
+	friendSelect := widget.NewSelect(friendOptions, nil)
+	friendSelect.SetSelected(friendOptions[0]) // 默认选择第一个
+
+	// 创建共同好友列表
+	commonFriendsList := widget.NewList(
+		func() int { return 0 }, // 初始为空
+		func() fyne.CanvasObject {
+			return widget.NewLabel("用户名")
+		},
+		func(id widget.ListItemID, obj fyne.CanvasObject) {},
+	)
+
+	var commonFriends []network.User
+
+	// 查询按钮
+	queryButton := widget.NewButton("查询共同好友", func() {
+		selectedFriend := friendSelect.Selected
+		if selectedFriend == "" {
+			return
+		}
+
+		friend := friendMap[selectedFriend]
+
+		// 调用API查询共同好友
+		result, err := fl.netManager.QueryCommonFriends(fl.userID, friend.FriendID, fl.serviceID)
+		if err != nil {
+			log.Printf("Query common friends error: %v", err)
+			return
+		}
+
+		log.Printf("Common friends result: %+v", result)
+
+		// 解析结果
+		commonFriends = []network.User{}
+		if data, ok := result["data"].([]interface{}); ok {
+			for _, friendData := range data {
+				if friendMap, ok := friendData.(map[string]interface{}); ok {
+					user := network.User{}
+					if id, ok := friendMap["common_friend_id"].(float64); ok {
+						user.UserID = int(id)
+					}
+					if username, ok := friendMap["username"].(string); ok {
+						user.Username = username
+					}
+					if nickname, ok := friendMap["nickname"].(string); ok {
+						user.Nickname = nickname
+					}
+					commonFriends = append(commonFriends, user)
+				}
+			}
+		}
+
+		// 更新列表
+		commonFriendsList.Length = func() int { return len(commonFriends) }
+		commonFriendsList.CreateItem = func() fyne.CanvasObject {
+			return widget.NewLabel("")
+		}
+		commonFriendsList.UpdateItem = func(id widget.ListItemID, obj fyne.CanvasObject) {
+			if id < len(commonFriends) {
+				friend := commonFriends[id]
+				label := obj.(*widget.Label)
+				label.SetText(fmt.Sprintf("%s (%s)", friend.Username, friend.Nickname))
+			}
+		}
+		commonFriendsList.Refresh()
+	})
+
+	// 创建对话框内容
+	content := container.NewVBox(
+		widget.NewLabel("选择要查询共同好友的好友:"),
+		friendSelect,
+		queryButton,
+		widget.NewSeparator(),
+		widget.NewLabel("共同好友:"),
+		container.NewScroll(commonFriendsList),
+	)
+
+	// 创建对话框
+	dialog := dialog.NewCustom("共同好友查询", "关闭", content, fl.window)
+	dialog.Resize(fyne.NewSize(400, 500))
+	dialog.Show()
 }

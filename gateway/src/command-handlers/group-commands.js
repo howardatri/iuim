@@ -221,7 +221,7 @@ async handleChangeGroupType(data, socket) {
     this.log('info', `Processing ${command} command with data`, data);
 
     try {
-      this.validateRequiredFields(data, ['group_id', 'user_id', 'role']);
+      this.validateRequiredFields(data, ['group_id', 'user_id', 'service_id', 'role_type']);
       const response = await this.sendRequest(GROUP_SVC_BASE_URL, '/set_member_role', data);
       this.log('info', `${command} response from ${this.serviceName}`, response.data);
       
