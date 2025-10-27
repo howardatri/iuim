@@ -1,6 +1,6 @@
 
 # iuim
-## 本项目为吉林大学面向对象课程设计，采用技术栈为golang(fyne) + node.js + c++17 + sqlite + nlonmannjson
+## 本项目为吉林大学面向对象课程设计，采用技术栈为golang(fyne) + node.js + c++17 + sqlite + nlonmannjson,完全实现了前后端分离
 
 # iuim — 混合通信架构示例 / Hybrid TCP–HTTP Microservices Demo
 
