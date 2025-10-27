@@ -2,6 +2,7 @@
 # iuim
 ## 本项目为吉林大学面向对象课程设计，采用技术栈为golang(fyne) + node.js + c++17 + sqlite + nlonmannjson,完全实现了前后端分离
 需要部署的话可以使用ngork替换客户端的ip地址，然后重新编译
+### 劳驾点点star，这对我很重要，谢谢
 
 # iuim — 混合通信架构示例 / Hybrid TCP–HTTP Microservices Demo
 
