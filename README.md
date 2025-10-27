@@ -190,17 +190,7 @@ The microservices register routes via `httplib::Server` and return JSON.
 
 数据库文件位于：`server/iuim.db` 或 `server/data/iuim.db`。
 
-- 在终端直接查看所有表（无需进入交互式）：
-  - `sqlite3 c:\Users\ASUS\Desktop\iuim\server\iuim.db ".tables"`
-- 查看单表建表语句：
-  - `sqlite3 c:\Users\ASUS\Desktop\iuim\server\iuim.db ".schema <TABLE_NAME>"`
 
-The SQLite database file resides at `server/iuim.db` or `server/data/iuim.db`.
-
-- List all tables (non-interactive):
-  - `sqlite3 c:\Users\ASUS\Desktop\iuim\server\iuim.db ".tables"`
-- Show schema for one table:
-  - `sqlite3 c:\Users\ASUS\Desktop\iuim\server\iuim.db ".schema <TABLE_NAME>"`
 
 
 ## 代码示例 / Code Examples
