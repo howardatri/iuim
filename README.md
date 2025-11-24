@@ -223,6 +223,4 @@ The microservices register routes via `httplib::Server` and return JSON.
 
 ## 许可证 / License
 
-此仓库用于课程设计与演示，未附带开源许可证。如需对外发布，请自行添加合适的许可证文件。
-
-This repository is for coursework and demonstration; no OSS license is included. Please add an appropriate license if publishing.
+GPL3
